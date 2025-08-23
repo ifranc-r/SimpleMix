@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MixBuilder — 100% local (Web Audio, limite 1h)</title>
+  <style>
+  /* Thème inversé : fond clair, texte sombre + responsive iPhone 12 */
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&display=swap');
+  @font-face { font-family:'Velvelyne'; src:url('./fonts/Velvelyne-Regular.woff2') format('woff2'); }
+  @font-face { font-family:'Karrik'; src:url('./fonts/Karrik-Regular.woff2') format('woff2'); }
+  @font-face { font-family:'CirrusCumulus'; src:url('./fonts/CirrusCumulus.woff') format('woff'); }
+  @font-face { font-family:'Ouroboros'; src:url('./fonts/Ouroboros-Regular.woff2') format('woff2'); }
+  @font-face { font-family:'VG5000'; src:url('./fonts/VG5000-Regular_web.woff2') format('woff2'); }
+  @font-face { font-family:'LeMurmure'; src:url('./fonts/LeMurmure-Regular.woff2') format('woff2'); }
+
+  :root{
+    --bg:#f2f2f2;      /* ancien noir -> devient fond */
+    --text:#0b0b0b;    /* ancien blanc -> devient texte */
+    --muted:#555;
+    --line:#ccc;
+    --hi:#000000;      /* hover: fond noir */
+    --lo:#ffffff;      /* hover: texte blanc */
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    font-family:'VG5000', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    max-width:1000px; margin:32px auto; padding:0 18px;
+  }
+  h1{
+    font-family:'LeMurmure', sans-serif;
+    font-size:4rem; margin:0 0 10px; letter-spacing:3px; text-transform:uppercase;
+  }
+  .panel{ border:1px solid var(--line); border-radius:0; padding:16px; margin:14px 0; background:#fff }
+
+  .row{display:flex; gap:16px; align-items:center; flex-wrap:wrap}
+  .col{flex:1 1 280px}
+  .small{font-size:1rem; color:var(--muted)}
+  .muted{color:var(--muted)}
+
+  /* Liste des pistes : grille responsive */
+  ul#tracks{list-style:none; padding:0; margin:8px 0}
+  li.track{
+    display:grid;
+    grid-template-columns: 1fr auto; /* titre à gauche, boutons à droite */
+    align-items:center;
+    gap:12px;
+    border:1px solid var(--line);
+    border-radius:0;
+    padding:10px 12px;
+    margin:10px 0;
+    background:#fff;
+    transition:background-color .12s linear, color .12s linear, border-color .12s linear;
+  }
+  li.track:hover{ background:var(--hi); color:var(--lo); border-color:var(--lo) }
+
+  /* Colonne gauche (numéro + nom + durée) */
+  .left{display:flex; gap:10px; align-items:center; min-width:0}
+  .left strong{
+    display:block;
+    max-width:100%;
+    overflow-wrap:anywhere;  /* coupe proprement les noms très longs */
+    word-break:break-word;
+  }
+
+  /* Colonne droite (contrôles) */
+  .right{display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end}
+  .badge{ font-size:.8rem; border:1px solid var(--line); border-radius:0; padding:2px 8px; color:inherit; flex:0 0 auto }
+
+  /* Boutons */
+  button{
+    border:1px solid var(--line); border-radius:0; padding:8px 12px; cursor:pointer;
+    background:#fff; color:var(--text);
+    transition:background-color .12s linear, color .12s linear, border-color .12s linear;
+  }
+  button:hover{ background:var(--hi); color:var(--lo); border-color:var(--lo) }
+  button:disabled{opacity:.55; cursor:not-allowed}
+  button.primary{font-weight:600}
+  button.icon{padding:6px 10px; flex:0 0 auto}
+
+  /* Inputs */
+  input[type="number"], input[type="file"], select{
+    padding:8px 10px; border:1px solid var(--line); border-radius:0; width:140px; background:#fff; color:var(--text);
+    transition:background-color .12s linear, color .12s linear, border-color .12s linear;
+  }
+  input[type="number"]:focus{ outline:none; background:var(--hi); color:var(--lo); border-color:var(--lo) }
+
+  /* Progress */
+  progress{ width:100%; height:10px; border:1px solid var(--line); border-radius:0; background:#fff }
+  progress::-webkit-progress-bar{ background:#fff }
+  progress::-webkit-progress-value{ background:#000 }
+  progress::-moz-progress-bar{ background:#000 }
+
+  .ok{color:#111}
+  .warn{color:#444}
+  .err,.danger{ color:#000; background:#fff; padding:2px 6px; display:inline-block }
+
+  #loading{ display:none; margin-top:10px; color:#333 }
+  .placeholder{ text-align:center; padding:24px; color:#333; border:1px dashed var(--line); border-radius:0; background:#fff }
+
+  .dragging{opacity:.7}
+  .swap{ animation:swap .08s linear }
+  @keyframes swap{0%{transform:translateY(-1px);} 100%{transform:translateY(0)}}
+
+  #limitMsgTop{ position:sticky; top:8px; z-index:2; padding:6px 0 }
+
+  /* iPhone 12 (390px) et petits écrans */
+  @media (max-width: 420px){
+    li.track{ grid-template-columns: 1fr; }        /* boutons passent en dessous */
+    .right{ justify-content:flex-start; }          /* alignés à gauche sur mobile */
+    .badge{ margin-bottom:4px }
+    button.icon{ padding:6px 10px }
+  }
+  </style>
+</head>
+<body>
+  <h1>MixBuilder — 100% local (dans ton navigateur)</h1>
+  <p class="small">Aucun fichier n'est envoyé sur un serveur. Le mix est rendu <strong>entièrement côté navigateur</strong> avec l'API Web Audio puis téléchargé en local (WAV). <br>Qualité conservée : 44.1 kHz stéréo. <strong>Limite dure : 1 heure</strong> (au-delà → génération impossible).</p>
+
+  <div class="panel">
+    <div class="row">
+      <div class="col">
+        <label for="xfade"><strong>Crossfade (secondes)</strong></label><br>
+        <input id="xfade" type="number" min="0" max="10" step="0.1" value="5">
+      </div>
+      <div class="col">
+        <label><input id="normalize" type="checkbox" checked> Normaliser par piste (peak)</label>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div id="limitMsgTop" class="small danger" style="margin-bottom:6px"></div>
+    <div class="row" style="justify-content:space-between">
+      <strong>Ordre des pistes</strong>
+      <span class="small">Glisser-déposer (drag & drop) ou ↑/↓ pour réordonner • 🗑️ pour supprimer</span>
+    </div>
+    <ul id="tracks"></ul>
+    <div id="tracksPlaceholder" class="placeholder">Ajoutez des fichiers pour commencer</div>
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <div class="small">
+        Durée totale estimée (avec crossfades) : <strong id="totalDur">00:00</strong>
+      </div>
+      <div class="small" id="limitMsg"></div>
+    </div>
+    <div style="margin-top:10px">
+      <input id="addMore" type="file" accept="audio/*" multiple style="display:none" />
+      <button id="addMoreBtn">➕ Ajouter d'autres fichiers</button>
+    </div>
+    <div id="loading">⏳ Ajout des fichiers en cours…</div>
+  </div>
+
+  <div class="panel">
+    <div class="row" style="gap:8px">
+      <button id="renderBtn" class="primary" disabled>Générer le mix (WAV)</button>
+      <button id="dlBtn" disabled>Télécharger le mix</button>
+      <span id="status" class="badge">Prêt</span>
+    </div>
+    <div class="small muted" style="margin-top:6px">
+      Note : Il n'est <strong>pas possible</strong> de générer un mix au-delà de <strong>1 heure</strong>. Réduis le crossfade et/ou <strong>supprime</strong> des pistes pour passer sous la limite.
+    </div>
+    <div id="progressWrap" style="margin-top:10px;display:none">
+      <progress id="progress" value="0" max="1"></progress>
+      <div class="small" id="progressText"></div>
+    </div>
+    <audio id="preview" controls style="margin-top:12px;width:100%"></audio>
+  </div>
+
+  <script>
+  const MAX_SECONDS = 1 * 60 * 60;
+  const OUTPUT_SAMPLE_RATE = 44100;
+  const MEM_SOFT_CAP_BYTES = 1.2 * 1024 * 1024 * 1024;
+
+  // --- Encodage WAV 16-bit PCM stéréo ---
+  function encodeWAV(audioBuffer){
+    const numChannels = audioBuffer.numberOfChannels;
+    const sampleRate = audioBuffer.sampleRate || OUTPUT_SAMPLE_RATE;
+    const samples = audioBuffer.length;
+    const ch0 = audioBuffer.getChannelData(0);
+    const ch1 = (numChannels>1) ? audioBuffer.getChannelData(1) : ch0;
+    const interleaved = new Int16Array(samples*2);
+    for(let i=0,j=0;i<samples;i++){
+      const sL = Math.max(-1, Math.min(1, ch0[i]));
+      const sR = Math.max(-1, Math.min(1, ch1[i]));
+      interleaved[j++] = (sL<0? sL*0x8000 : sL*0x7FFF);
+      interleaved[j++] = (sR<0? sR*0x8000 : sR*0x7FFF);
+    }
+    const byteRate = sampleRate * 4; // 16-bit * 2ch
+    const blockAlign = 4;
+    const dataSize = interleaved.length * 2;
+    const buffer = new ArrayBuffer(44 + dataSize);
+    const view = new DataView(buffer);
+    function wr(off, str){ for(let i=0;i<str.length;i++) view.setUint8(off+i, str.charCodeAt(i)); }
+    let o=0;
+    wr(o,'RIFF'); o+=4;
+    view.setUint32(o,36 + dataSize,true); o+=4;
+    wr(o,'WAVE'); o+=4;
+    wr(o,'fmt '); o+=4;
+    view.setUint32(o,16,true); o+=4; // PCM header size
+    view.setUint16(o,1,true); o+=2;  // PCM
+    view.setUint16(o,2,true); o+=2;  // channels
+    view.setUint32(o,sampleRate,true); o+=4;
+    view.setUint32(o,byteRate,true); o+=4;
+    view.setUint16(o,blockAlign,true); o+=2;
+    view.setUint16(o,16,true); o+=2; // bits
+    wr(o,'data'); o+=4;
+    view.setUint32(o,dataSize,true); o+=4;
+    new Int16Array(buffer,44).set(interleaved);
+    return new Blob([buffer], {type:'audio/wav'});
+  }
+
+  const addMoreInput= document.getElementById('addMore');
+  const addMoreBtn  = document.getElementById('addMoreBtn');
+  const list        = document.getElementById('tracks');
+  const placeholder = document.getElementById('tracksPlaceholder');
+  const renderBtn   = document.getElementById('renderBtn');
+  const dlBtn       = document.getElementById('dlBtn');
+  const statusEl    = document.getElementById('status');
+  const progressWrap= document.getElementById('progressWrap');
+  const progress    = document.getElementById('progress');
+  const progressText= document.getElementById('progressText');
+  const preview     = document.getElementById('preview');
+  const xfadeInput  = document.getElementById('xfade');
+  const normalizeChk= document.getElementById('normalize');
+  const totalDurEl  = document.getElementById('totalDur');
+  const limitMsgEl  = document.getElementById('limitMsg');
+  const limitMsgTop = document.getElementById('limitMsgTop');
+  const loadingEl   = document.getElementById('loading');
+
+  // Boutons actions
+  renderBtn.addEventListener('click', onRenderClick);
+  dlBtn.addEventListener('click', onDownloadClick);
+
+  async function onRenderClick(){
+    if (files.length < 2) return;
+    setStatus('Préparation…','warn');
+    progressWrap.style.display='block'; progress.value=0; progressText.textContent='';
+    try {
+      if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)({sampleRate:OUTPUT_SAMPLE_RATE});
+      // Recalcul total + gardes
+      const xfade=clamp(parseFloat(xfadeInput.value||'0'),0,10);
+      let totalSec=0;
+      for (let i=0;i<order.length;i++){
+        const idx=order[i];
+        const dur=safeDur(buffers[idx]);
+        totalSec+=dur;
+        if (i>0 && xfade>0){
+          const prevDur=safeDur(buffers[order[i-1]]);
+          const safeX=Math.min(xfade,prevDur/2,dur/2);
+          totalSec-=Math.max(0,safeX);
+        }
+      }
+      if (!isFinite(totalSec) || totalSec<=0) throw new Error('Durée totale invalide.');
+      if (totalSec > MAX_SECONDS) throw new Error('Mix > 1h — réduis ou supprime des pistes.');
+      const estBytes=totalSec*OUTPUT_SAMPLE_RATE*2*4;
+      if (estBytes > MEM_SOFT_CAP_BYTES) throw new Error('Mix trop lourd pour la RAM du navigateur.');
+
+      const frames = Math.ceil(totalSec * OUTPUT_SAMPLE_RATE);
+      const offline = new OfflineAudioContext(2, frames, OUTPUT_SAMPLE_RATE);
+
+      let t = 0;
+      for (let i=0;i<order.length;i++){
+        const idx = order[i];
+        const buffer = buffers[idx];
+        const dur = safeDur(buffer);
+        const src = offline.createBufferSource(); src.buffer = buffer;
+        const g = offline.createGain();
+        let target = 1;
+        if (normalizeChk.checked){
+          let peak = 0; const ch0 = buffer.getChannelData(0);
+          for (let k=0;k<ch0.length;k++){ const v = Math.abs(ch0[k]); if (v>peak) peak=v; }
+          if (peak<1e-6) peak=1; target = Math.min(1, 0.9/peak);
+        }
+        const prevDur = i>0 ? safeDur(buffers[order[i-1]]) : 0;
+        const safeX = (i>0) ? Math.min(xfade, prevDur/2, dur/2) : 0;
+
+        if (safeX>0){
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.linearRampToValueAtTime(target, t + safeX);
+          if (i < order.length-1){
+            g.gain.setValueAtTime(target, t + dur - safeX);
+            g.gain.linearRampToValueAtTime(0.0001, t + dur);
+          }
+        } else {
+          g.gain.setValueAtTime(target, t);
+        }
+
+        src.connect(g).connect(offline.destination);
+        src.start(t);
+        t += dur - safeX;
+      }
+
+      setStatus('Rendu…','warn');
+      const rendered = await offline.startRendering();
+      progress.value = 0.9;
+      const blob = encodeWAV(rendered);
+      lastBlob = blob;
+      const url = URL.createObjectURL(blob);
+      preview.src = url;
+      dlBtn.disabled = false;
+      setStatus('Terminé','ok');
+      progress.value = 1; progressText.textContent = 'Mix prêt.';
+    } catch(err){
+      console.error(err);
+      setStatus(err.message || String(err), 'err');
+    }
+  }
+
+  function onDownloadClick(){
+    if (!lastBlob) return;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(lastBlob);
+    a.download = 'mix.wav';
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+
+  let files = [];
+  let order = [];
+  let buffers = [];
+  let lastBlob = null;
+  let ctx = null;
+  let pendingSwap = null;
+
+  addMoreInput.addEventListener('change', async () => {
+    await handleFiles(addMoreInput.files);
+    addMoreInput.value = '';
+  });
+
+  addMoreBtn.addEventListener('click', () => {
+    addMoreInput.click();
+  });
+
+  async function handleFiles(fileList){
+    if (!fileList.length) return;
+    loadingEl.style.display = 'block';
+    const newFiles = Array.from(fileList);
+    const startIndex = files.length;
+    files.push(...newFiles);
+    order.push(...newFiles.map((_,i)=>startIndex+i));
+    buffers.length = files.length;
+    await decodeAllMetadata(startIndex);
+    renderList();
+    updateTotalsAndGate();
+    loadingEl.style.display = 'none';
+  }
+
+  async function decodeAllMetadata(start=0){
+    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)({sampleRate:OUTPUT_SAMPLE_RATE});
+    for (let i=start;i<files.length;i++){
+      if (buffers[i]) continue;
+      try {
+        const arr = await files[i].arrayBuffer();
+        const buf = await ctx.decodeAudioData(arr);
+        buffers[i] = buf;
+      } catch(e) {
+        buffers[i] = { duration:0, numberOfChannels:2, getChannelData:()=>new Float32Array(0), sampleRate:OUTPUT_SAMPLE_RATE };
+      }
+    }
+  }
+
+  function renderList(){
+    list.innerHTML='';
+    if (!order.length){ placeholder.style.display='block'; return; }
+    placeholder.style.display='none';
+    order.forEach((idx,pos)=>{
+      const f=files[idx];
+      const d=safeDur(buffers[idx]);
+      const li=document.createElement('li');
+      li.className='track';
+      li.draggable=true;li.dataset.pos=String(pos);
+      li.addEventListener('dragstart',(e)=>{li.classList.add('dragging');e.dataTransfer.setData('text/plain',String(pos));});
+      li.addEventListener('dragend',()=>li.classList.remove('dragging'));
+      li.addEventListener('dragover',(e)=>{e.preventDefault();});
+      li.addEventListener('drop',(e)=>{e.preventDefault();const from=parseInt(e.dataTransfer.getData('text/plain'),10);const to=pos;if(!Number.isInteger(from)||from===to)return;animateSwap(from,to);swapPositions(from,to);renderList();updateTotalsAndGate();});
+
+      const left=document.createElement('div');left.className='left';
+      const badge=document.createElement('span');badge.className='badge';badge.textContent=String(pos+1);
+      const name=document.createElement('strong');name.textContent=f.name;
+      const dur=document.createElement('span');dur.className='small muted';dur.textContent=`(${fmtMmSs(d)})`;
+      left.appendChild(badge);left.appendChild(name);left.appendChild(dur);
+
+      const right=document.createElement('div');right.className='right';
+      const up=document.createElement('button');up.className='icon';up.textContent='↑';up.onclick=()=>{animateSwap(pos,pos-1);move(pos,-1);};
+      const down=document.createElement('button');down.className='icon';down.textContent='↓';down.onclick=()=>{animateSwap(pos,pos+1);move(pos,1);};
+      const del=document.createElement('button');del.className='icon';del.textContent='🗑️';del.onclick=()=>removeAt(pos);
+      right.appendChild(up);right.appendChild(down);right.appendChild(del);
+
+      li.appendChild(left);li.appendChild(right);
+      list.appendChild(li);
+    });
+
+    if (pendingSwap){
+      const items = Array.from(list.querySelectorAll('.track'));
+      const iA = Math.max(0, Math.min(items.length-1, pendingSwap.a));
+      const iB = Math.max(0, Math.min(items.length-1, pendingSwap.b));
+      if (items[iA]) items[iA].classList.add('swap');
+      if (items[iB]) items[iB].classList.add('swap');
+      setTimeout(()=>{
+        if (items[iA]) items[iA].classList.remove('swap');
+        if (items[iB]) items[iB].classList.remove('swap');
+      }, 220);
+      pendingSwap = null;
+    }
+  }
+
+  function move(pos,delta){const np=pos+delta;if(np<0||np>=order.length)return;swapPositions(pos,np);renderList();updateTotalsAndGate();}
+  function swapPositions(a,b){if(a<0||b<0||a>=order.length||b>=order.length)return;const tmp=order[a];order[a]=order[b];order[b]=tmp;}
+  function animateSwap(a,b){ pendingSwap = {a,b}; }
+
+  function removeAt(pos){
+    if(pos<0||pos>=order.length)return;
+    const removedIndex=order[pos];
+    order.splice(pos,1);
+    files.splice(removedIndex,1);
+    buffers.splice(removedIndex,1);
+    for(let i=0;i<order.length;i++){ if(order[i]>removedIndex) order[i]--; }
+    renderList();
+    updateTotalsAndGate();
+    if(files.length<2){ renderBtn.disabled=true; }
+  }
+
+  function updateTotalsAndGate(){
+    const xfade=clamp(parseFloat(xfadeInput.value||'0'),0,10);
+    let totalSec=0;
+    for(let i=0;i<order.length;i++){
+      const idx=order[i];
+      const dur=safeDur(buffers[idx]);
+      totalSec+=dur;
+      if(i>0&&xfade>0){
+        const prevDur=safeDur(buffers[order[i-1]]);
+        const safeX=Math.min(xfade,prevDur/2,dur/2);
+        totalSec-=Math.max(0,safeX);
+      }
+    }
+    totalDurEl.textContent=fmtHhMmSs(totalSec);
+    let gateMsg='';
+    const estBytes=totalSec*OUTPUT_SAMPLE_RATE*2*4;
+    const overTime=totalSec>MAX_SECONDS;
+    const overMem=estBytes>MEM_SOFT_CAP_BYTES;
+    if(overTime){gateMsg='⛔ Limite 1h dépassée — supprime des pistes ou réduis le crossfade.';}else if(overMem){gateMsg='⚠️ Mix très long — risque de manque de mémoire navigateur.';}
+    limitMsgEl.textContent=gateMsg;
+    if(limitMsgTop) limitMsgTop.textContent=gateMsg;
+    renderBtn.disabled=(files.length<2)||overTime||overMem;
+  }
+
+  function setStatus(text,cls){statusEl.textContent=text;statusEl.className='badge '+(cls||'');}
+  function clamp(v,min,max){v=isFinite(v)?v:0;return Math.max(min,Math.min(max,v));}
+  function safeDur(buf){return Math.max(0,isFinite(buf?.duration)?buf.duration:0);}
+  function fmtMmSs(s){const m=Math.floor(s/60),ss=Math.floor(s%60);return `${m}:${String(ss).padStart(2,'0')}`;}
+  function fmtHhMmSs(s){const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),ss=Math.floor(s%60);return `${h}h${String(m).padStart(2,'0')}m${String(ss).padStart(2,'0')}s`;}
+  </script>
+</body>
+</html>
