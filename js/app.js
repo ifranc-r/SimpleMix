@@ -7,12 +7,12 @@
  */
 
 
-  const MAX_SECONDS = 1 * 60 * 60;
-  const OUTPUT_SAMPLE_RATE = 44100;
-  const MEM_SOFT_CAP_BYTES = 1.2 * 1024 * 1024 * 1024;
+const MAX_SECONDS = 1 * 60 * 60;
+const OUTPUT_SAMPLE_RATE = 44100;
+const MEM_SOFT_CAP_BYTES = 1.2 * 1024 * 1024 * 1024;
 
   // --- Encodage WAV 16-bit PCM stéréo ---
-  function encodeWAV(audioBuffer){
+function encodeWAV(audioBuffer){
     const numChannels = audioBuffer.numberOfChannels;
     const sampleRate = audioBuffer.sampleRate || OUTPUT_SAMPLE_RATE;
     const samples = audioBuffer.length;
@@ -281,13 +281,13 @@
     limitMsgEl.textContent=gateMsg;
     if(limitMsgTop) limitMsgTop.textContent=gateMsg;
     renderBtn.disabled=(files.length<2)||overTime||overMem;
-  }
+}
 
-  function setStatus(text,cls){statusEl.textContent=text;statusEl.className='badge '+(cls||'');}
-  function clamp(v,min,max){v=isFinite(v)?v:0;return Math.max(min,Math.min(max,v));}
-  function safeDur(buf){return Math.max(0,isFinite(buf?.duration)?buf.duration:0);}
-  function fmtMmSs(s){const m=Math.floor(s/60),ss=Math.floor(s%60);return `${m}:${String(ss).padStart(2,'0')}`;}
-  function fmtHhMmSs(s){const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),ss=Math.floor(s%60);return `${h}h${String(m).padStart(2,'0')}m${String(ss).padStart(2,'0')}s`;}
+function setStatus(text,cls){statusEl.textContent=text;statusEl.className='badge '+(cls||'');}
+function clamp(v,min,max){v=isFinite(v)?v:0;return Math.max(min,Math.min(max,v));}
+function safeDur(buf){return Math.max(0,isFinite(buf?.duration)?buf.duration:0);}
+function fmtMmSs(s){const m=Math.floor(s/60),ss=Math.floor(s%60);return `${m}:${String(ss).padStart(2,'0')}`;}
+function fmtHhMmSs(s){const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),ss=Math.floor(s%60);return `${h}h${String(m).padStart(2,'0')}m${String(ss).padStart(2,'0')}s`;}
 
 // Static intro modal — show once (bump KEY to re-show)
 (function(){
