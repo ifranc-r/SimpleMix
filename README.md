@@ -38,9 +38,5 @@ A real full-stack version would include:
 This project is for **educational and experimental purposes only**.
 The user is fully responsible for ensuring they have the rights to any audio files uploaded.
 
-```html
-<div id="previewWrap" style="margin-top:12px; text-align:center">
-  <img id="cover" src="img/preview.jpeg" alt="Mix cover"
-       style="max-width:200px; display:block; margin:0 auto 12px;">
-  <audio id="preview" controls style="width:100%"></audio>
-</div>
+
+![screenshot](img/preview.jpeg?raw=true "Title")
