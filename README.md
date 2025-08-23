@@ -39,4 +39,4 @@ This project is for **educational and experimental purposes only**.
 The user is fully responsible for ensuring they have the rights to any audio files uploaded.
 
 
-![screenshot](img/preview.jpeg?raw=true "Title")
+![screenshot](img/preview.jpeg)
