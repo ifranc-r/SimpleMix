@@ -1,12 +1,12 @@
 
   /* Thème inversé : fond clair, texte sombre + responsive iPhone 12 */
   @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&display=swap');
-  @font-face { font-family:'Velvelyne'; src:url('./fonts/Velvelyne-Regular.woff2') format('woff2'); }
-  @font-face { font-family:'Karrik'; src:url('./fonts/Karrik-Regular.woff2') format('woff2'); }
-  @font-face { font-family:'CirrusCumulus'; src:url('./fonts/CirrusCumulus.woff') format('woff'); }
-  @font-face { font-family:'Ouroboros'; src:url('./fonts/Ouroboros-Regular.woff2') format('woff2'); }
-  @font-face { font-family:'VG5000'; src:url('./fonts/VG5000-Regular_web.woff2') format('woff2'); }
-  @font-face { font-family:'LeMurmure'; src:url('./fonts/LeMurmure-Regular.woff2') format('woff2'); }
+  @font-face { font-family:'Velvelyne'; src:url('../fonts/Velvelyne-Regular.woff2') format('woff2'); }
+  @font-face { font-family:'Karrik'; src:url('../fonts/Karrik-Regular.woff2') format('woff2'); }
+  @font-face { font-family:'CirrusCumulus'; src:url('../fonts/CirrusCumulus.woff') format('woff'); }
+  @font-face { font-family:'Ouroboros'; src:url('../fonts/Ouroboros-Regular.woff2') format('woff2'); }
+  @font-face { font-family:'VG5000'; src:url('../fonts/VG5000-Regular_web.woff2') format('woff2'); }
+  @font-face { font-family:'LeMurmure'; src:url('../fonts/LeMurmure-Regular.woff2') format('woff2'); }
 
   :root{
     --bg:#f2f2f2;      /* ancien noir -> devient fond */
