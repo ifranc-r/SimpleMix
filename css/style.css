@@ -39,6 +39,11 @@
   .row{display:flex; gap:16px; align-items:center; flex-wrap:wrap}
   .col{flex:1 1 280px}
   .small{font-size:1rem; color:var(--muted)}
+  .small strong {
+  color: #000;          /* noir pour les parties en strong */
+  font-size: 1.1rem;   /* encore un peu plus grand pour se démarquer */
+  font-weight: 700;     /* au cas où la fonte supporte le gras */
+}
   .muted{color:var(--muted)}
 
   /* Liste des pistes : grille responsive */
