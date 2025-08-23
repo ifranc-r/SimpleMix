@@ -1,23 +1,30 @@
 <!doctype html>
-<html lang="fr">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>MixBuilder — 100% local (Web Audio, limite 1h)</title>
+  <title>SimpleMix — 100% Open Source</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <h1>MixBuilder — 100% local (dans ton navigateur)</h1>
-  <p class="small">Aucun fichier n'est envoyé sur un serveur. Le mix est rendu <strong>entièrement côté navigateur</strong> avec l'API Web Audio puis téléchargé en local (WAV). <br>Qualité conservée : 44.1 kHz stéréo. <strong>Limite dure : 1 heure</strong> (au-delà → génération impossible).</p>
+  <h1>SimpleMix — 100% Open Source</h1>
+  <p class="small">
+    <strong>No ads, no accounts, no cloud — just fast one-click mixing.</strong><br>
+    Load your tracks, order them, crossfade, and download in seconds.  
+    Everything runs <strong>directly in your browser</strong> with the Web Audio API,  
+    and the final mix is saved locally as a high-quality WAV (44.1 kHz stereo).  
+    <br>
+    <strong>Hard limit: 1 hour</strong> — beyond this, generation is disabled to keep your browser stable.
+  </p>
 
   <div class="panel">
     <div class="row">
       <div class="col">
-        <label for="xfade"><strong>Crossfade (secondes)</strong></label><br>
+        <label for="xfade"><strong>Crossfade (seconds)</strong></label><br>
         <input id="xfade" type="number" min="0" max="10" step="0.1" value="5">
       </div>
       <div class="col">
-        <label><input id="normalize" type="checkbox" checked> Normaliser par piste (peak)</label>
+        <label><input id="normalize" type="checkbox" checked> Normalize each track (peak)</label>
       </div>
     </div>
   </div>
@@ -25,32 +32,33 @@
   <div class="panel">
     <div id="limitMsgTop" class="small danger" style="margin-bottom:6px"></div>
     <div class="row" style="justify-content:space-between">
-      <strong>Ordre des pistes</strong>
-      <span class="small">Glisser-déposer (drag & drop) ou ↑/↓ pour réordonner • 🗑️ pour supprimer</span>
+      <strong>Track order</strong>
+      <span class="small">Drag & drop or use ↑/↓ to reorder • 🗑️ to delete</span>
     </div>
     <ul id="tracks"></ul>
-    <div id="tracksPlaceholder" class="placeholder">Ajoutez des fichiers pour commencer</div>
+    <div id="tracksPlaceholder" class="placeholder">Add some files to get started</div>
     <div class="row" style="justify-content:space-between;align-items:center">
       <div class="small">
-        Durée totale estimée (avec crossfades) : <strong id="totalDur">00:00</strong>
+        Estimated total duration (with crossfades): <strong id="totalDur">00:00</strong>
       </div>
       <div class="small" id="limitMsg"></div>
     </div>
     <div style="margin-top:10px">
       <input id="addMore" type="file" accept="audio/*" multiple style="display:none" />
-      <button id="addMoreBtn">➕ Ajouter d'autres fichiers</button>
+      <button id="addMoreBtn">➕ Add more files</button>
     </div>
-    <div id="loading">⏳ Ajout des fichiers en cours…</div>
+    <div id="loading">⏳ Adding files…</div>
   </div>
 
   <div class="panel">
     <div class="row" style="gap:8px">
-      <button id="renderBtn" class="primary" disabled>Générer le mix (WAV)</button>
-      <button id="dlBtn" disabled>Télécharger le mix</button>
-      <span id="status" class="badge">Prêt</span>
+      <button id="renderBtn" class="primary" disabled>Generate mix (WAV)</button>
+      <button id="dlBtn" disabled>Download mix</button>
+      <span id="status" class="badge">Ready</span>
     </div>
     <div class="small muted" style="margin-top:6px">
-      Note : Il n'est <strong>pas possible</strong> de générer un mix au-delà de <strong>1 heure</strong>. Réduis le crossfade et/ou <strong>supprime</strong> des pistes pour passer sous la limite.
+      Note: It is <strong>not possible</strong> to generate a mix longer than <strong>1 hour</strong>.  
+      Reduce the crossfade and/or <strong>remove</strong> tracks to stay under the limit.
     </div>
     <div id="progressWrap" style="margin-top:10px;display:none">
       <progress id="progress" value="0" max="1"></progress>
@@ -59,6 +67,16 @@
     <audio id="preview" controls style="margin-top:12px;width:100%"></audio>
   </div>
 
-<script src="js/app.js"></script>
-</body>
+  <script src="js/app.js"></script>
+  <footer style="margin-top:40px; padding:12px; text-align:center; font-size:0.85rem; color:#999; border-top:1px solid #333">
+    <p>
+      © 2025 ifranc-r • 
+      <a href="https://github.com/ifranc-r/SimpleMix" target="_blank" rel="noopener noreferrer" style="color:inherit; text-decoration:none;">
+        GitHub Project
+      </a> • 
+      <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noopener noreferrer" style="color:inherit; text-decoration:none;">
+        CC BY-NC 4.0 License
+      </a>
+    </p>
+  </footer>
 </html>

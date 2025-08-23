@@ -1,4 +1,10 @@
-
+/*
+ * SimpleMix
+ * Copyright (c) 2025 ifranc-r
+ * Licensed under Creative Commons BY-NC 4.0
+ * https://creativecommons.org/licenses/by-nc/4.0/
+ */
+  
   /* Thème inversé : fond clair, texte sombre + responsive iPhone 12 */
   @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&display=swap');
   @font-face { font-family:'Velvelyne'; src:url('../fonts/Velvelyne-Regular.woff2') format('woff2'); }

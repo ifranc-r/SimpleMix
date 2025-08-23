@@ -1,4 +1,11 @@
 
+  /*
+ * SimpleMix
+ * Copyright (c) 2025 ifranc-r
+ * Licensed under Creative Commons BY-NC 4.0
+ * https://creativecommons.org/licenses/by-nc/4.0/
+ */
+  
   const MAX_SECONDS = 1 * 60 * 60;
   const OUTPUT_SAMPLE_RATE = 44100;
   const MEM_SOFT_CAP_BYTES = 1.2 * 1024 * 1024 * 1024;
@@ -280,3 +287,6 @@
   function safeDur(buf){return Math.max(0,isFinite(buf?.duration)?buf.duration:0);}
   function fmtMmSs(s){const m=Math.floor(s/60),ss=Math.floor(s%60);return `${m}:${String(ss).padStart(2,'0')}`;}
   function fmtHhMmSs(s){const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),ss=Math.floor(s%60);return `${h}h${String(m).padStart(2,'0')}m${String(ss).padStart(2,'0')}s`;}
+
+
+  
