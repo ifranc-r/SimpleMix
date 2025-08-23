@@ -119,3 +119,51 @@
     .badge{ margin-bottom:4px }
     button.icon{ padding:6px 10px }
   }
+/* Simple modal (no animation) */
+.sm-modal{
+  position:fixed; inset:0; display:none; align-items:center; justify-content:center;
+  background:rgba(0,0,0,.82); z-index:1000;
+}
+.sm-box{
+  background:#1f1f1fef; color:#f5f5f5; border:1px solid #333; padding:16px;
+  max-width:560px; width:92%; text-align:center;
+}
+.sm-button{
+  margin-top:12px; background:#fff; color:#000; border:1px solid #000;
+  padding:8px 14px; cursor:pointer; border-radius:0;
+}
+.sm-button:hover{ background:#000; color:#fff }
+
+/* Tutorial image */
+.sm-tuto{
+  display:block;        /* block element */
+  margin:0 auto;        /* auto margins → center horizontally */
+  max-width:60%;        /* half size of modal */
+  height:auto;
+  border:1px solid #222;
+  background:#fff;
+}
+.sm-title,
+.sm-intro{
+  text-align:center;   /* explicitly center title & intro */
+}
+.sm-title{
+    font-size: 2.5rem;
+}
+
+.slogan{
+  font-size:1.4rem;
+  font-weight:700;
+  color:#fff;
+  letter-spacing:1px;
+}
+.sm-intro strong{
+  font-size:1.1rem;
+  color:#121212;
+  background:#ffffff;
+}
+.tuto-label{
+  font-size:0.95rem;
+  color:#aaa; /* plus discret */
+  text-transform:uppercase;
+}

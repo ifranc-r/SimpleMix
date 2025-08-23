@@ -6,15 +6,37 @@
   <title>SimpleMix — 100% Open Source</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
+
+<!-- SimpleMix intro modal — static image -->
+<div id="introModal" class="sm-modal" aria-hidden="true">
+  <div class="sm-box" role="dialog" aria-modal="true" aria-label="SimpleMix quick tutorial">
+    <h2 class="sm-title">Welcome to SimpleMix</h2>
+    <p class="sm-intro">
+      <span class="slogan">MAKE YOUR MIX</span><br><br>
+      <strong>Upload → 🎵🎵🎵 = One Mix (WAV)</strong><br><br>
+      TUTO:
+    </p>
+
+    <img src="tuto2.png" alt="How SimpleMix works" class="sm-tuto">
+    <button id="smClose" class="sm-button" aria-label="Close">Got it</button>
+  </div>
+</div>
+
 <body>
   <h1>SimpleMix — 100% Open Source</h1>
   <p class="small">
-    <strong>No ads, no accounts, no cloud — just fast one-click mixing.</strong><br>
-    Load your tracks, order them, crossfade, and download in seconds.  
-    Everything runs <strong>directly in your browser</strong> with the Web Audio API,  
-    and the final mix is saved locally as a high-quality WAV (44.1 kHz stereo).  
+    <strong>Choose your 🎵Tracks + Arrange & Crossfade = YourMix.wav (Listen & Download) </strong>
+    <br><br>
+    No ads<br>
+    no accounts<br>
+    no cloud<br>
+    <strong>just fast one-click mixing</strong>
+    <br><br>  
+    No server <strong>directly in your browser</strong><br> 
+    No compression : <strong>Mix is saved locally as a high-quality WAV <br>(44.1 kHz stereo)</strong>   
     <br>
-    <strong>Hard limit: 1 hour</strong> — beyond this, generation is disabled to keep your browser stable.
+    <br>
+    <strong>Hard limit: 1 hour</strong>
   </p>
 
   <div class="panel">
@@ -45,7 +67,7 @@
     </div>
     <div style="margin-top:10px">
       <input id="addMore" type="file" accept="audio/*" multiple style="display:none" />
-      <button id="addMoreBtn">➕ Add more files</button>
+      <button id="addMoreBtn">➕ Add your Tracks 🎵</button>
     </div>
     <div id="loading">⏳ Adding files…</div>
   </div>

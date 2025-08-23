@@ -5,7 +5,8 @@
  * Licensed under Creative Commons BY-NC 4.0
  * https://creativecommons.org/licenses/by-nc/4.0/
  */
-  
+
+
   const MAX_SECONDS = 1 * 60 * 60;
   const OUTPUT_SAMPLE_RATE = 44100;
   const MEM_SOFT_CAP_BYTES = 1.2 * 1024 * 1024 * 1024;
@@ -288,5 +289,19 @@
   function fmtMmSs(s){const m=Math.floor(s/60),ss=Math.floor(s%60);return `${m}:${String(ss).padStart(2,'0')}`;}
   function fmtHhMmSs(s){const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),ss=Math.floor(s%60);return `${h}h${String(m).padStart(2,'0')}m${String(ss).padStart(2,'0')}s`;}
 
+// Static intro modal — show once (bump KEY to re-show)
+(function(){
+  const KEY = 'sm_seen_intro_static_v1';
+  const modal = document.getElementById('introModal');
+  const btn = document.getElementById('smClose');
+  if (!modal || !btn) return;
 
-  
+  const show = () => { modal.style.display = 'flex'; modal.setAttribute('aria-hidden','false'); };
+  const hide = () => { modal.style.display = 'none'; modal.setAttribute('aria-hidden','true'); localStorage.setItem(KEY, '1'); };
+
+  if (!localStorage.getItem(KEY)) show();
+  btn.addEventListener('click', hide);
+  modal.addEventListener('click', (e)=>{ if (e.target === modal) hide(); });
+})();
+
+
