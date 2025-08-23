@@ -1,5 +1,11 @@
 # MixBuilder — Experimental Prototype
 
+<div id="previewWrap" style="margin-top:12px; text-align:center">
+  <img id="cover" src="preview.png" alt="Mix cover"
+       style="max-width:200px; display:block; margin:0 auto 12px;">
+  <audio id="preview" controls style="width:100%"></audio>
+</div>
+
 ⚠️ **This project is only a prototype / test version.**  
 It was built as a **front-end only demo** (HTML + CSS + JS, using the Web Audio API) to explore the idea of building audio mixes directly in the browser.
 
@@ -38,10 +44,3 @@ A real full-stack version would include:
 This project is for **educational and experimental purposes only**.
 The user is fully responsible for ensuring they have the rights to any audio files uploaded.
 
-<img id="cover" src="preview.png" style="display:block">
-
-<div id="previewWrap" style="margin-top:12px; text-align:center">
-  <img id="cover" src="preview.png" alt="Mix cover"
-       style="max-width:200px; display:block; margin:0 auto 12px;">
-  <audio id="preview" controls style="width:100%"></audio>
-</div>
