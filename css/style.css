@@ -1,0 +1,110 @@
+
+  /* Thème inversé : fond clair, texte sombre + responsive iPhone 12 */
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&display=swap');
+  @font-face { font-family:'Velvelyne'; src:url('./fonts/Velvelyne-Regular.woff2') format('woff2'); }
+  @font-face { font-family:'Karrik'; src:url('./fonts/Karrik-Regular.woff2') format('woff2'); }
+  @font-face { font-family:'CirrusCumulus'; src:url('./fonts/CirrusCumulus.woff') format('woff'); }
+  @font-face { font-family:'Ouroboros'; src:url('./fonts/Ouroboros-Regular.woff2') format('woff2'); }
+  @font-face { font-family:'VG5000'; src:url('./fonts/VG5000-Regular_web.woff2') format('woff2'); }
+  @font-face { font-family:'LeMurmure'; src:url('./fonts/LeMurmure-Regular.woff2') format('woff2'); }
+
+  :root{
+    --bg:#f2f2f2;      /* ancien noir -> devient fond */
+    --text:#0b0b0b;    /* ancien blanc -> devient texte */
+    --muted:#555;
+    --line:#ccc;
+    --hi:#000000;      /* hover: fond noir */
+    --lo:#ffffff;      /* hover: texte blanc */
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    font-family:'VG5000', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    max-width:1000px; margin:32px auto; padding:0 18px;
+  }
+  h1{
+    font-family:'LeMurmure', sans-serif;
+    font-size:4rem; margin:0 0 10px; letter-spacing:3px; text-transform:uppercase;
+  }
+  .panel{ border:1px solid var(--line); border-radius:0; padding:16px; margin:14px 0; background:#fff }
+
+  .row{display:flex; gap:16px; align-items:center; flex-wrap:wrap}
+  .col{flex:1 1 280px}
+  .small{font-size:1rem; color:var(--muted)}
+  .muted{color:var(--muted)}
+
+  /* Liste des pistes : grille responsive */
+  ul#tracks{list-style:none; padding:0; margin:8px 0}
+  li.track{
+    display:grid;
+    grid-template-columns: 1fr auto; /* titre à gauche, boutons à droite */
+    align-items:center;
+    gap:12px;
+    border:1px solid var(--line);
+    border-radius:0;
+    padding:10px 12px;
+    margin:10px 0;
+    background:#fff;
+    transition:background-color .12s linear, color .12s linear, border-color .12s linear;
+  }
+  li.track:hover{ background:var(--hi); color:var(--lo); border-color:var(--lo) }
+
+  /* Colonne gauche (numéro + nom + durée) */
+  .left{display:flex; gap:10px; align-items:center; min-width:0}
+  .left strong{
+    display:block;
+    max-width:100%;
+    overflow-wrap:anywhere;  /* coupe proprement les noms très longs */
+    word-break:break-word;
+  }
+
+  /* Colonne droite (contrôles) */
+  .right{display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end}
+  .badge{ font-size:.8rem; border:1px solid var(--line); border-radius:0; padding:2px 8px; color:inherit; flex:0 0 auto }
+
+  /* Boutons */
+  button{
+    border:1px solid var(--line); border-radius:0; padding:8px 12px; cursor:pointer;
+    background:#fff; color:var(--text);
+    transition:background-color .12s linear, color .12s linear, border-color .12s linear;
+  }
+  button:hover{ background:var(--hi); color:var(--lo); border-color:var(--lo) }
+  button:disabled{opacity:.55; cursor:not-allowed}
+  button.primary{font-weight:600}
+  button.icon{padding:6px 10px; flex:0 0 auto}
+
+  /* Inputs */
+  input[type="number"], input[type="file"], select{
+    padding:8px 10px; border:1px solid var(--line); border-radius:0; width:140px; background:#fff; color:var(--text);
+    transition:background-color .12s linear, color .12s linear, border-color .12s linear;
+  }
+  input[type="number"]:focus{ outline:none; background:var(--hi); color:var(--lo); border-color:var(--lo) }
+
+  /* Progress */
+  progress{ width:100%; height:10px; border:1px solid var(--line); border-radius:0; background:#fff }
+  progress::-webkit-progress-bar{ background:#fff }
+  progress::-webkit-progress-value{ background:#000 }
+  progress::-moz-progress-bar{ background:#000 }
+
+  .ok{color:#111}
+  .warn{color:#444}
+  .err,.danger{ color:#000; background:#fff; padding:2px 6px; display:inline-block }
+
+  #loading{ display:none; margin-top:10px; color:#333 }
+  .placeholder{ text-align:center; padding:24px; color:#333; border:1px dashed var(--line); border-radius:0; background:#fff }
+
+  .dragging{opacity:.7}
+  .swap{ animation:swap .08s linear }
+  @keyframes swap{0%{transform:translateY(-1px);} 100%{transform:translateY(0)}}
+
+  #limitMsgTop{ position:sticky; top:8px; z-index:2; padding:6px 0 }
+
+  /* iPhone 12 (390px) et petits écrans */
+  @media (max-width: 420px){
+    li.track{ grid-template-columns: 1fr; }        /* boutons passent en dessous */
+    .right{ justify-content:flex-start; }          /* alignés à gauche sur mobile */
+    .badge{ margin-bottom:4px }
+    button.icon{ padding:6px 10px }
+  }
