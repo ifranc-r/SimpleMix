@@ -277,7 +277,7 @@ function encodeWAV(audioBuffer){
     const estBytes=totalSec*OUTPUT_SAMPLE_RATE*2*4;
     const overTime=totalSec>MAX_SECONDS;
     const overMem=estBytes>MEM_SOFT_CAP_BYTES;
-    if(overTime){gateMsg='⛔ Limite 1h dépassée — supprime des pistes ou réduis le crossfade.';}else if(overMem){gateMsg='⚠️ Mix très long — risque de manque de mémoire navigateur.';}
+    if(overTime){gateMsg='⛔ 1h limit exceeded — remove tracks or reduce crossfade.';}else if(overMem){gateMsg='⚠️ Mix très long — risque de manque de mémoire navigateur.';}
     limitMsgEl.textContent=gateMsg;
     if(limitMsgTop) limitMsgTop.textContent=gateMsg;
     renderBtn.disabled=(files.length<2)||overTime||overMem;
