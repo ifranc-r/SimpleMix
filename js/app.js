@@ -73,7 +73,7 @@ function encodeWAV(audioBuffer){
 
   async function onRenderClick(){
     if (files.length < 2) return;
-    setStatus('Préparation…','warn');
+    setStatus('Preparing…','warn');
     progressWrap.style.display='block'; progress.value=0; progressText.textContent='';
     try {
       if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)({sampleRate:OUTPUT_SAMPLE_RATE});
@@ -90,10 +90,10 @@ function encodeWAV(audioBuffer){
           totalSec-=Math.max(0,safeX);
         }
       }
-      if (!isFinite(totalSec) || totalSec<=0) throw new Error('Durée totale invalide.');
-      if (totalSec > MAX_SECONDS) throw new Error('Mix > 1h — réduis ou supprime des pistes.');
+      if (!isFinite(totalSec) || totalSec<=0) throw new Error('Invalid total duration.');
+      if (totalSec > MAX_SECONDS) throw new Error('⛔ Mix length > 1h — please remove tracks or reduce crossfade.');
       const estBytes=totalSec*OUTPUT_SAMPLE_RATE*2*4;
-      if (estBytes > MEM_SOFT_CAP_BYTES) throw new Error('Mix trop lourd pour la RAM du navigateur.');
+      if (estBytes > MEM_SOFT_CAP_BYTES) throw new Error('⛔ Mix too heavy for browser memory (RAM).');
 
       const frames = Math.ceil(totalSec * OUTPUT_SAMPLE_RATE);
       const offline = new OfflineAudioContext(2, frames, OUTPUT_SAMPLE_RATE);
@@ -130,7 +130,7 @@ function encodeWAV(audioBuffer){
         t += dur - safeX;
       }
 
-      setStatus('Rendu…','warn');
+      setStatus('Rendering…','warn');
       const rendered = await offline.startRendering();
       progress.value = 0.9;
       const blob = encodeWAV(rendered);
@@ -138,8 +138,8 @@ function encodeWAV(audioBuffer){
       const url = URL.createObjectURL(blob);
       preview.src = url;
       dlBtn.disabled = false;
-      setStatus('Terminé','ok');
-      progress.value = 1; progressText.textContent = 'Mix prêt.';
+      setStatus('Done','ok');
+      progress.value = 1; progressText.textContent = 'Mix ready.';
     } catch(err){
       console.error(err);
       setStatus(err.message || String(err), 'err');
@@ -277,7 +277,7 @@ function encodeWAV(audioBuffer){
     const estBytes=totalSec*OUTPUT_SAMPLE_RATE*2*4;
     const overTime=totalSec>MAX_SECONDS;
     const overMem=estBytes>MEM_SOFT_CAP_BYTES;
-    if(overTime){gateMsg='⛔ 1h limit exceeded — remove tracks or reduce crossfade.';}else if(overMem){gateMsg='⚠️ Mix très long — risque de manque de mémoire navigateur.';}
+    if(overTime){gateMsg='⛔ 1h limit exceeded — remove tracks or reduce crossfade.';}else if(overMem){gateMsg='⚠️ Very long mix — risk of browser memory issues.';}
     limitMsgEl.textContent=gateMsg;
     if(limitMsgTop) limitMsgTop.textContent=gateMsg;
     renderBtn.disabled=(files.length<2)||overTime||overMem;
