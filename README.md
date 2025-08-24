@@ -9,18 +9,15 @@
 2. Arrange it & Crossfade
 3. get our YourMix.wav (Listen & Download)
 
-No installs, 
-no accounts, 
-no ads. 
 ---
 
-Tutorial
-___
+## Tutorial
+
 
 Go to https://ifranc-r.github.io/SimpleMix/
 1. Choose your 🎵Tracks 
 2. Arrange it & Crossfade
-3. get our *YourMix.wav* (Listen & Download)
+3. get our *Your_Mix.wav* (Listen & Download)
 
 
 ## Why SimpleMix?
