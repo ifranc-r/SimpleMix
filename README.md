@@ -1,11 +1,11 @@
-# 🎶 SimpleMix
+# 🎶 SimpleMix — Make your mix in 2 clicks.
 [![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg)](LICENSE.md)
 
 
 
 **SimpleMix is a lightweight, open-source tool** to quickly **create** a continuous **mix from multiple audio tracks** — directly in your browser.
 
-*Choose your 🎵Tracks + Arrange & Crossfade = YourMix.wav (Listen & Download)*
+*Choose your 🎵Tracks, Arrange it & Crossfade and get our YourMix.wav (Listen & Download)*
 
 No installs, 
 no accounts, 
