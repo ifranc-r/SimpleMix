@@ -1,4 +1,4 @@
-# 🎶 SimpleMix — Make your mix in 2 clicks.
+# 🎶 SimpleMix — *Make your mix in 2 clicks.*
 [![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg)](LICENSE.md)
 
 
@@ -13,6 +13,15 @@ No installs,
 no accounts, 
 no ads. 
 ---
+
+Tutorial
+___
+
+Go to https://ifranc-r.github.io/SimpleMix/
+1. Choose your 🎵Tracks 
+2. Arrange it & Crossfade
+3. get our *YourMix.wav* (Listen & Download)
+
 
 ## Why SimpleMix?
 
