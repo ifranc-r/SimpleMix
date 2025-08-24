@@ -7,8 +7,9 @@
 
 *Choose your 🎵Tracks + Arrange & Crossfade = YourMix.wav (Listen & Download)*
 
-No installs, no accounts, no ads. Just upload your files, reorder them, apply smooth crossfades, and download your final mix as a single audio file.
-
+No installs, 
+no accounts, 
+no ads. 
 ---
 
 ## Why SimpleMix?
