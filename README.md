@@ -5,7 +5,9 @@
 
 **SimpleMix is a lightweight, open-source tool** to quickly **create** a continuous **mix from multiple audio tracks** — directly in your browser.
 
-*Choose your 🎵Tracks, Arrange it & Crossfade and get our YourMix.wav (Listen & Download)*
+1. Choose your 🎵Tracks 
+2. Arrange it & Crossfade
+3. get our YourMix.wav (Listen & Download)
 
 No installs, 
 no accounts, 
