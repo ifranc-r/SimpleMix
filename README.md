@@ -35,12 +35,7 @@ Example included in this repo:
 `img/preview.jpeg`
 
 In `index.html`:
-```html
-<div id="previewWrap" style="margin-top:12px; text-align:center">
-  <img id="cover" src="preview.png" alt="Mix cover"
-       style="max-width:200px; display:block; margin:0 auto 12px;">
-  <audio id="preview" controls style="width:100%"></audio>
-</div>
+<img id="cover" src="preview.png" alt="Mix cover" style="max-width:200px; display:block; margin:0 auto 12px;">
 
 ⚠️ **This project is only a prototype / test version.**  
 It was built as a **front-end only demo** (HTML + CSS + JS, using the Web Audio API) to explore the idea of building audio mixes directly in the browser.
