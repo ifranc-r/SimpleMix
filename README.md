@@ -1,21 +1,21 @@
-# 🎶 SimpleMix — *Make your mix in 2 clicks.*
+# 🎶 Track2One — *Make your mix in 2 clicks.*
 [![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg)](LICENSE.md)
 
 
 
-**SimpleMix is a lightweight, open-source tool** to quickly **create** a continuous **mix from multiple audio tracks** — directly in your browser.
+**Track2One is a lightweight, open-source tool** to quickly **create** a continuous **mix from multiple audio tracks** — directly in your browser.
 ---
 
 ## Tutorial
 
 
-Go to https://ifranc-r.github.io/SimpleMix/
+Go to https://ifranc-r.github.io/Track2One/
 1. Choose your 🎵Tracks 
 2. Arrange it & Crossfade
 3. get our *Your_Mix.wav* (Listen & Download)
 
 
-## Why SimpleMix?
+## Why Track2One?
 
 Most audio editors and DJ tools are too complex for simple tasks.
 
@@ -26,7 +26,7 @@ If you only want to:
 - Normalize volumes so nothing clips
 - Export locally in high-quality WAV
 
-…then SimpleMix gives you exactly that — in seconds.
+…then Track2One gives you exactly that — in seconds.
 
 ---
 
@@ -69,7 +69,7 @@ It was built as a **front-end only demo** (HTML + CSS + JS, using the Web Audio 
 
 ## Why?  
 
-**SimpleMix** is a lightweight **proof-of-concept**.  
+**Track2One** is a lightweight **proof-of-concept**.  
 It shows how far we can go with **pure client-side Web Audio API**, without servers, accounts, or heavy infrastructure.  
 
 But this is only the beginning. The idea is to prepare the ground for a **full-stack audio mixing platform**, with:  
@@ -91,7 +91,7 @@ A complete version could be built with:
 - **Database + storage** — for projects & files  
 - **User dashboards** — manage, preview, and re-download mixes  
 
-> **SimpleMix today = demo of what’s possible client-side.  
+> **Track2One today = demo of what’s possible client-side.  
 > Tomorrow = scalable full-stack audio tool.**
 
 ## Disclaimer
