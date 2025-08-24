@@ -37,7 +37,7 @@ Example included in this repo:
 In `index.html`:
 ```html
 <div id="previewWrap" style="margin-top:12px; text-align:center">
-  <img id="cover" src="preview.jpeg" alt="Mix cover"
+  <img id="cover" src="preview.png" alt="Mix cover"
        style="max-width:200px; display:block; margin:0 auto 12px;">
   <audio id="preview" controls style="width:100%"></audio>
 </div>
