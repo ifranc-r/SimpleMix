@@ -1,5 +1,5 @@
 /*
- * SimpleMix — Rolling preview (seekable, no time limit) + parallel chunked export (WAV)
+ * SimpleMix — Instant rolling preview (seekable) + chunked export (WAV)
  * CC BY-NC 4.0 — https://creativecommons.org/licenses/by-nc/4.0/
  */
 
@@ -24,13 +24,14 @@ const limitMsgEl = document.getElementById("limitMsg");
 const limitMsgTop = document.getElementById("limitMsgTop");
 const loadingEl = document.getElementById("loading");
 
+// WaveSurfer UI
+const $wsTime = document.getElementById("wsTime");
+const $wsPlay = document.getElementById("wsPlay");
+const $wsPause = document.getElementById("wsPause");
+const $wsBack = document.getElementById("wsBack");
+const $wsFwd = document.getElementById("wsFwd");
 
-// Optional player UI (if you keep those)
-const playToggle = document.getElementById("playToggle");
-const skipBackBtn = document.getElementById("skipBackBtn");
-const skipFwdBtn = document.getElementById("skipFwdBtn");
-
-// --- State
+// ---------- State ----------
 let files = [];
 let order = [];
 let buffers = [];
@@ -38,60 +39,74 @@ let lastBlob = null;
 let ctx = null;
 let pendingSwap = null;
 
-let timeline = []; // [{idx,startSec,endSec,safeX}]
+let timeline = []; // [{idx, startSec, endSec, safeX}]
 let totalSecCached = 0;
-
-let rolling = null; // RollingPreview instance
 let currentSec = 0;
+
+let rolling = null;
 let isPlaying = false;
 
-let lastSkipDir = 0;
-let lastSkipAt = 0;
-const DOUBLE_SKIP_MS = 700;
+let isExporting = false; // pour ne pas recréer la waveform pendant l'export
+let wsBootedOnce = false; // pour éviter les reloads qui remettent le curseur à 0
 
-function computeSkipSeconds(dir) {
-  const now = performance.now();
-  const fast = dir === lastSkipDir && now - lastSkipAt < DOUBLE_SKIP_MS;
-  lastSkipDir = dir;
-  lastSkipAt = now;
-  return fast ? 30 : 10;
-}
+// WaveSurfer + progressive peaks
+let ws = null;
+const N_BINS = 2048; // resolution of the whole track
+let peaksL = null;
+let peaksR = null;
 
-function setPlayingUI(p) {
-  isPlaying = p;
-  if (playToggle) playToggle.textContent = p ? "⏸ Pause" : "▶ Play";
-}
-
-// ---------- Helpers ----------
+// ---------- Small helpers ----------
 function setStatus(text, cls) {
-  statusEl.textContent = text;
-  statusEl.className = "badge " + (cls || "");
+  if (statusEl) {
+    statusEl.textContent = text;
+    statusEl.className = "badge " + (cls || "");
+  }
 }
-function clamp(v, min, max) { v = isFinite(v) ? v : 0; return Math.max(min, Math.min(max, v)); }
-function safeDur(buf) { return Math.max(0, isFinite(buf?.duration) ? buf.duration : 0); }
-function fmtMmSs(s) { const m = Math.floor(s / 60), ss = Math.floor(s % 60); return `${m}:${String(ss).padStart(2,"0")}`; }
-function fmtHhMmSs(s) { const h=Math.floor(s/3600), m=Math.floor((s%3600)/60), ss=Math.floor(s%60); return `${h}:${String(m).padStart(2,"0")}:${String(ss).padStart(2,"0")}`; }
+function clamp(v, min, max) {
+  v = isFinite(v) ? v : 0;
+  return Math.max(min, Math.min(max, v));
+}
+function safeDur(buf) {
+  return Math.max(0, isFinite(buf?.duration) ? buf.duration : 0);
+}
+function fmtMmSs(s) {
+  const m = Math.floor(s / 60),
+    ss = Math.floor(s % 60);
+  return `${m}:${String(ss).padStart(2, "0")}`;
+}
+function fmtHhMmSs(s) {
+  const h = Math.floor(s / 3600),
+    m = Math.floor((s % 3600) / 60),
+    ss = Math.floor(s % 60);
+  return `${h}:${String(m).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
+}
+function setPlayingUI(p) {
+  isPlaying = p; /* label optional */
+}
 
 // ---------- Files ----------
-addMoreInput.addEventListener("change", async () => {
+addMoreInput?.addEventListener("change", async () => {
   await handleFiles(addMoreInput.files);
   addMoreInput.value = "";
 });
-addMoreBtn.addEventListener("click", () => addMoreInput.click());
+addMoreBtn?.addEventListener("click", () => addMoreInput?.click());
 
 async function handleFiles(fileList) {
-  if (!fileList.length) return;
-  loadingEl.style.display = "block";
-  const newFiles = Array.from(fileList);
-  const startIndex = files.length;
-  files.push(...newFiles);
-  order.push(...newFiles.map((_, i) => startIndex + i));
-  buffers.length = files.length;
-  await decodeAllMetadata(startIndex);
-  renderList();
-  recalcTimelineAndTotals();
-  renderBtn.disabled = files.length < 2;
-  loadingEl.style.display = "none";
+  if (!fileList?.length) return;
+  loadingEl && (loadingEl.style.display = "block");
+  try {
+    const newFiles = Array.from(fileList);
+    const startIndex = files.length;
+    files.push(...newFiles);
+    order.push(...newFiles.map((_, i) => startIndex + i));
+    buffers.length = files.length;
+    await decodeAllMetadata(startIndex);
+    renderList();
+    recalcTimelineAndTotals(); // also boots WaveSurfer
+    if (renderBtn) renderBtn.disabled = !(files.length >= 2);
+  } finally {
+    loadingEl && (loadingEl.style.display = "none");
+  }
 }
 
 async function decodeAllMetadata(start = 0) {
@@ -123,9 +138,13 @@ async function decodeAllMetadata(start = 0) {
 }
 
 function renderList() {
+  if (!list) return;
   list.innerHTML = "";
-  if (!order.length) { placeholder.style.display = "block"; return; }
-  placeholder.style.display = "none";
+  if (!order.length) {
+    if (placeholder) placeholder.style.display = "block";
+    return;
+  }
+  if (placeholder) placeholder.style.display = "none";
 
   order.forEach((idx, pos) => {
     const f = files[idx];
@@ -154,16 +173,36 @@ function renderList() {
 
     const left = document.createElement("div");
     left.className = "left";
-    const badge = document.createElement("span"); badge.className = "badge"; badge.textContent = String(pos + 1);
-    const name = document.createElement("strong"); name.textContent = f.name;
-    const dur = document.createElement("span"); dur.className = "small muted"; dur.textContent = `(${fmtMmSs(d)})`;
+    const badge = document.createElement("span");
+    badge.className = "badge";
+    badge.textContent = String(pos + 1);
+    const name = document.createElement("strong");
+    name.textContent = f.name;
+    const dur = document.createElement("span");
+    dur.className = "small muted";
+    dur.textContent = `(${fmtMmSs(d)})`;
     left.append(badge, name, dur);
 
     const right = document.createElement("div");
     right.className = "right";
-    const up = document.createElement("button");   up.className="icon"; up.textContent="↑"; up.onclick = () => { animateSwap(pos,pos-1); move(pos,-1); };
-    const down = document.createElement("button"); down.className="icon"; down.textContent="↓"; down.onclick = () => { animateSwap(pos,pos+1); move(pos, 1); };
-    const del = document.createElement("button");  del.className="icon"; del.textContent="🗑️"; del.onclick = () => removeAt(pos);
+    const up = document.createElement("button");
+    up.className = "icon";
+    up.textContent = "↑";
+    up.onclick = () => {
+      animateSwap(pos, pos - 1);
+      move(pos, -1);
+    };
+    const down = document.createElement("button");
+    down.className = "icon";
+    down.textContent = "↓";
+    down.onclick = () => {
+      animateSwap(pos, pos + 1);
+      move(pos, 1);
+    };
+    const del = document.createElement("button");
+    del.className = "icon";
+    del.textContent = "🗑️";
+    del.onclick = () => removeAt(pos);
     right.append(up, down, del);
 
     li.append(left, right);
@@ -191,23 +230,32 @@ function move(pos, delta) {
   renderList();
   recalcTimelineAndTotals();
 }
-function swapPositions(a, b) { if (a<0||b<0||a>=order.length||b>=order.length) return; const t=order[a]; order[a]=order[b]; order[b]=t; }
-function animateSwap(a, b) { pendingSwap = { a, b }; }
+function swapPositions(a, b) {
+  if (a < 0 || b < 0 || a >= order.length || b >= order.length) return;
+  const t = order[a];
+  order[a] = order[b];
+  order[b] = t;
+}
+function animateSwap(a, b) {
+  pendingSwap = { a, b };
+}
 function removeAt(pos) {
   if (pos < 0 || pos >= order.length) return;
   const removedIndex = order[pos];
   order.splice(pos, 1);
   files.splice(removedIndex, 1);
   buffers.splice(removedIndex, 1);
-  for (let i = 0; i < order.length; i++) if (order[i] > removedIndex) order[i]--;
+  for (let i = 0; i < order.length; i++) {
+    if (order[i] > removedIndex) order[i]--;
+  }
   renderList();
   recalcTimelineAndTotals();
-  renderBtn.disabled = files.length < 2;
+  if (renderBtn) renderBtn.disabled = !(files.length >= 2);
 }
 
-// ---------- Timeline / duration ----------
+// ---------- Timeline & totals (also boots WS) ----------
 function recalcTimelineAndTotals() {
-  const xfade = clamp(parseFloat(xfadeInput.value || "0"), 0, 10);
+  const xfade = clamp(parseFloat(xfadeInput?.value || "0"), 0, 10);
   timeline = [];
   let t = 0;
   for (let i = 0; i < order.length; i++) {
@@ -215,38 +263,33 @@ function recalcTimelineAndTotals() {
     const dur = safeDur(buffers[idx]);
     const prevDur = i > 0 ? safeDur(buffers[order[i - 1]]) : 0;
     const safeX = i > 0 ? Math.min(xfade, prevDur / 2, dur / 2) : 0;
-    const startSec = t, endSec = t + dur;
+    const startSec = t,
+      endSec = t + dur;
     timeline.push({ idx, startSec, endSec, safeX });
     t += dur - safeX;
   }
   totalSecCached = timeline.length ? timeline[timeline.length - 1].endSec : 0;
-  totalDurEl.textContent = fmtHhMmSs(totalSecCached);
+  totalDurEl && (totalDurEl.textContent = fmtHhMmSs(totalSecCached));
 
-  // message
+  // perf warning only
   let gateMsg = "";
   const estBytes = totalSecCached * OUTPUT_SAMPLE_RATE * 2 * 4;
-  if (estBytes > MEM_SOFT_CAP_BYTES) gateMsg = "⚠️ Very long mix — may affect performance.";
-  limitMsgEl.textContent = gateMsg;
-  if (limitMsgTop) limitMsgTop.textContent = gateMsg;
+  if (estBytes > MEM_SOFT_CAP_BYTES)
+    gateMsg = "⚠️ Very long mix — may affect performance.";
+  limitMsgEl && (limitMsgEl.textContent = gateMsg);
+  limitMsgTop && (limitMsgTop.textContent = gateMsg);
 
+  // boot / refresh WaveSurfer placeholder
+  wsBoot(totalSecCached);
+  wsBuildPeaksFromDecoded();
 }
 
-function estimateTotalSec() {
-  const xfade = clamp(parseFloat(xfadeInput.value||'0'),0,10);
-  let total=0;
-  for (let i=0;i<order.length;i++){
-    const d=safeDur(buffers[order[i]]);
-    total+=d;
-    if(i>0){
-      const prev=safeDur(buffers[order[i-1]]);
-      total -= Math.max(0, Math.min(xfade, prev/2, d/2));
-    }
-  }
-  return total;
-}
-
-// ---------- Windowed offline render ----------
-async function renderWindowToBuffer(winStartSec, winEndSec, sampleRate = OUTPUT_SAMPLE_RATE) {
+// ---------- Offline window renderer ----------
+async function renderWindowToBuffer(
+  winStartSec,
+  winEndSec,
+  sampleRate = OUTPUT_SAMPLE_RATE
+) {
   const frames = Math.max(1, Math.ceil((winEndSec - winStartSec) * sampleRate));
   const offline = new OfflineAudioContext(2, frames, sampleRate);
   scheduleWindowIntoOffline(offline, winStartSec, winEndSec);
@@ -254,59 +297,64 @@ async function renderWindowToBuffer(winStartSec, winEndSec, sampleRate = OUTPUT_
 }
 
 function scheduleWindowIntoOffline(offline, winStart, winEnd) {
-  const xfade = clamp(parseFloat(xfadeInput.value || "0"), 0, 10);
+  const xfade = clamp(parseFloat(xfadeInput?.value || "0"), 0, 10);
 
   for (let i = 0; i < timeline.length; i++) {
     const { idx, startSec, endSec } = timeline[i];
-    const dur = safeDur(buffers[idx]); if (dur <= 0) continue;
+    const buf = buffers[idx];
+    const dur = safeDur(buf);
+    if (dur <= 0) continue;
 
-    // overlap
     const ovStart = Math.max(startSec, winStart);
     const ovEnd = Math.min(endSec, winEnd);
     const ovLen = ovEnd - ovStart;
     if (ovLen <= 0) continue;
 
-    const buf = buffers[idx];
-    const src = offline.createBufferSource(); src.buffer = buf;
+    const src = offline.createBufferSource();
+    src.buffer = buf;
     const g = offline.createGain();
 
     // normalization
     let target = 1;
-    if (normalizeChk.checked) {
-      let peak = 0; const ch0 = buf.getChannelData(0);
-      for (let k = 0; k < ch0.length; k++) { const v = Math.abs(ch0[k]); if (v > peak) peak = v; }
+    if (normalizeChk?.checked) {
+      let peak = 0;
+      const ch0 = buf.getChannelData(0);
+      for (let k = 0; k < ch0.length; k++) {
+        const v = Math.abs(ch0[k]);
+        if (v > peak) peak = v;
+      }
       if (peak < 1e-6) peak = 1;
       target = Math.min(1, 0.9 / peak);
     }
-
-    const prevDur = i > 0 ? safeDur(buffers[timeline[i - 1].idx]) : 0;
-    const safeX = i > 0 ? Math.min(xfade, prevDur / 2, dur / 2) : 0;
 
     const when = ovStart - winStart;
     const srcOffset = ovStart - startSec;
     const playDur = ovLen;
 
-    // envelope for fades
+    // approximate fades if intersected
+    const prevDur = i > 0 ? safeDur(buffers[timeline[i - 1].idx]) : 0;
+    const safeX = i > 0 ? Math.min(xfade, prevDur / 2, dur / 2) : 0;
+    const fadeInStart = startSec,
+      fadeInEnd = startSec + safeX;
+    const fadeOutStart = endSec - safeX,
+      fadeOutEnd = endSec;
+
     g.gain.setValueAtTime(target, when);
+
     if (safeX > 0) {
-      const fadeInStart = startSec;
-      const fadeInEnd = startSec + safeX;
-      const fadeOutStart = endSec - safeX;
-      const fadeOutEnd = endSec;
-
-      const a = when, b = when + playDur;
-
-      const fiStartInWin = Math.max(a, fadeInStart - winStart);
-      const fiEndInWin = Math.min(b, fadeInEnd - winStart);
-      if (fiEndInWin > fiStartInWin) {
-        g.gain.setValueAtTime(0.0001, fiStartInWin);
-        g.gain.linearRampToValueAtTime(target, fiEndInWin);
+      // fade-in inside window
+      const a1 = Math.max(when, fadeInStart - winStart);
+      const b1 = Math.min(when + playDur, fadeInEnd - winStart);
+      if (b1 > a1) {
+        g.gain.setValueAtTime(0.0001, a1);
+        g.gain.linearRampToValueAtTime(target, b1);
       }
-      const foStartInWin = Math.max(a, fadeOutStart - winStart);
-      const foEndInWin = Math.min(b, fadeOutEnd - winStart);
-      if (foEndInWin > foStartInWin) {
-        g.gain.setValueAtTime(target, foStartInWin);
-        g.gain.linearRampToValueAtTime(0.0001, foEndInWin);
+      // fade-out inside window
+      const a2 = Math.max(when, fadeOutStart - winStart);
+      const b2 = Math.min(when + playDur, fadeOutEnd - winStart);
+      if (b2 > a2) {
+        g.gain.setValueAtTime(target, a2);
+        g.gain.linearRampToValueAtTime(0.0001, b2);
       }
     }
 
@@ -315,7 +363,7 @@ function scheduleWindowIntoOffline(offline, winStart, winEnd) {
   }
 }
 
-// ---------- RollingPreview (seekable, no time limit) ----------
+// ---------- Rolling preview ----------
 class RollingPreview {
   constructor(opts = {}) {
     this.W = opts.windowSec ?? 12;
@@ -327,12 +375,10 @@ class RollingPreview {
     this.curCtx = null;
     this.curSrc = null;
     this.nextBuf = null;
-
     this.t0 = 0;
     this.startedAt = 0;
     this._stopped = true;
     this._paused = false;
-
     this._raf = null;
     this._iv = null;
     this._tick = this._tick.bind(this);
@@ -340,22 +386,29 @@ class RollingPreview {
 
     document.addEventListener("visibilitychange", async () => {
       if (!this.curCtx) return;
-      try { await this.curCtx.resume(); } catch {}
+      try {
+        await this.curCtx.resume();
+      } catch {}
     });
   }
-
   async _stopCurrentOnly() {
     if (this.curSrc) {
-      try { this.curSrc.onended = null; this.curSrc.stop(0); } catch {}
-      try { this.curSrc.disconnect(); } catch {}
+      try {
+        this.curSrc.onended = null;
+        this.curSrc.stop(0);
+      } catch {}
+      try {
+        this.curSrc.disconnect();
+      } catch {}
       this.curSrc = null;
     }
     if (this.curCtx) {
-      try { await this.curCtx.close(); } catch {}
+      try {
+        await this.curCtx.close();
+      } catch {}
       this.curCtx = null;
     }
   }
-
   async stop() {
     this._stopped = true;
     this._paused = false;
@@ -363,24 +416,27 @@ class RollingPreview {
     await this._stopCurrentOnly();
     this.nextBuf = null;
   }
-
   async pause() {
     this._paused = true;
     this._stopTicks();
     if (this.curCtx?.state === "running") {
-      try { await this.curCtx.suspend(); } catch {}
+      try {
+        await this.curCtx.suspend();
+      } catch {}
     }
   }
-
   async play() {
     this._paused = false;
     if (this.curCtx?.state === "suspended") {
-      try { await this.curCtx.resume(); } catch {}
+      try {
+        await this.curCtx.resume();
+      } catch {}
     }
     this._startTicks();
   }
-
-  async startAt(sec) { return this.jumpTo(sec); }
+  async startAt(sec) {
+    return this.jumpTo(sec);
+  }
 
   async jumpTo(sec) {
     this._stopped = false;
@@ -389,31 +445,41 @@ class RollingPreview {
     const myGen = ++this._gen;
     await this._stopCurrentOnly();
 
-    // compute window
+    // choose window
     const half = this.W / 2;
     let wStart = Math.max(0, sec - half);
     let wEnd = Math.min(this.totalSec, wStart + this.W);
     if (wEnd - wStart < this.W) wStart = Math.max(0, wEnd - this.W);
 
     const buf = await renderWindowToBuffer(wStart, wEnd, this.SR);
+    wsAccumulatePeaks(wStart, wEnd, buf); // progressively draw waveform
     if (this._gen !== myGen || this._stopped) return;
-    this._playBuffer(buf, wStart);
 
+    this._playBuffer(buf, wStart);
     this._prefetch(wEnd);
     this._startTicks();
   }
 
   _playBuffer(buf, t0) {
     const myGen = this._gen;
-    const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: this.SR });
-    const src = ctx.createBufferSource(); src.buffer = buf; src.connect(ctx.destination); src.start();
+    const ctx = new (window.AudioContext || window.webkitAudioContext)({
+      sampleRate: this.SR,
+    });
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(ctx.destination);
+    src.start();
 
-    this.curCtx = ctx; this.curSrc = src; this.t0 = t0; this.startedAt = ctx.currentTime;
+    this.curCtx = ctx;
+    this.curSrc = src;
+    this.t0 = t0;
+    this.startedAt = ctx.currentTime;
 
     src.onended = () => {
       if (this._gen !== myGen || this._stopped || this._paused) return;
       if (this.nextBuf) {
-        const next = this.nextBuf; this.nextBuf = null;
+        const next = this.nextBuf;
+        this.nextBuf = null;
         this._playBuffer(next.buf, next.t0);
         this._prefetch(next.t0 + this.W);
       }
@@ -429,6 +495,7 @@ class RollingPreview {
         if (this._gen !== myGen) return;
         this.nextBuf = { buf: b, t0: nextStart };
         this.onBuffered({ from: nextStart, to: end });
+        wsAccumulatePeaks(nextStart, end, b); // update waveform as we go
       })
       .catch(() => {});
   }
@@ -439,115 +506,441 @@ class RollingPreview {
     this._iv = setInterval(this._tick, 250);
   }
   _stopTicks() {
-    if (this._raf) cancelAnimationFrame(this._raf), this._raf = null;
-    if (this._iv) clearInterval(this._iv), this._iv = null;
+    if (this._raf) {
+      cancelAnimationFrame(this._raf);
+      this._raf = null;
+    }
+    if (this._iv) {
+      clearInterval(this._iv);
+      this._iv = null;
+    }
   }
-
-  _tick = () => {
+  _tick() {
     if (this._stopped || this._paused || !this.curCtx) return;
     if (this.curCtx.state === "suspended") return;
     const elapsed = this.curCtx.currentTime - this.startedAt;
     const globalT = this.t0 + Math.max(0, elapsed);
     this.onProgress(globalT, this.totalSec);
+    wsSetPlayhead(globalT, this.totalSec); // drive WS cursor/time
+    currentSec = globalT;
     this._raf = requestAnimationFrame(this._tick);
+  }
+}
+
+function wsBoot(totalSec) {
+  if (!window.WaveSurfer) return;
+
+if (!ws) {
+  ws = WaveSurfer.create({
+    container: '#wave',
+    waveColor: '#999',
+    progressColor: '#000',
+    cursorColor: '#333',
+    height: 80,
+    interact: true,
+  });
+
+  // 1) Seek WaveSurfer → pilote le preview
+  const handleSeek = async (progress) => {
+    const dur = ws.getDuration() || totalSecCached || 0;
+    const when = Math.max(0, Math.min(dur, progress * dur));
+
+    // force l’affichage immédia​t du curseur + temps
+    try { ws.setTime(when); } catch {}
+    wsUpdateTime(when, dur);
+
+    if (!rolling) {
+      await bootRollingAt(when);
+      setPlayingUI(true);
+      return;
+    }
+    await rolling.jumpTo(when);
+    setPlayingUI(true);
   };
+
+  ws.on('seek', handleSeek);
+
+  // 2) Fallback manuel si l’event 'seek' ne part pas (certains contextes)
+  const el = document.getElementById('wave');
+  el?.addEventListener('pointerdown', async (e) => {
+    // ignore si WS n'a pas encore de durée connue
+    const dur = ws.getDuration() || totalSecCached || 0;
+    if (!dur) return;
+
+    const rect = el.getBoundingClientRect();
+    const p = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    await handleSeek(p);
+  }, { passive: true });
 }
 
 
+  // (ré)alloue les peaks si besoin
+  if (!peaksL || peaksL.length !== N_BINS) {
+    peaksL = new Float32Array(N_BINS);
+    peaksR = new Float32Array(N_BINS);
+  }
 
-// ---------- Export WAV chunked ----------
+  // charge une première fois la durée (sans décodage) — une seule fois
+  if (!wsBootedOnce && !isExporting) {
+    try {
+      ws.load("", [peaksL, peaksR], totalSec || 0);
+      wsBootedOnce = true;
+    } catch {}
+  }
+
+  wsUpdateTime(0, totalSec || 0);
+}
+
+function wsAccumulatePeaks(winStartSec, winEndSec, audioBuffer) {
+  if (!ws) return;
+  const total = ws.getDuration() || totalSecCached || 0;
+  if (!total) return;
+
+  const sr = audioBuffer.sampleRate;
+  const L = audioBuffer.getChannelData(0);
+  const R =
+    audioBuffer.numberOfChannels > 1 ? audioBuffer.getChannelData(1) : L;
+  const stride = 512;
+
+  for (let i = 0; i < L.length; i += stride) {
+    const t = winStartSec + i / sr;
+    const bin = Math.max(
+      0,
+      Math.min(N_BINS - 1, Math.floor((t / total) * N_BINS))
+    );
+    let pL = 0,
+      pR = 0,
+      jMax = Math.min(L.length, i + stride);
+    for (let j = i; j < jMax; j++) {
+      const a = Math.abs(L[j]);
+      if (a > pL) pL = a;
+      const b = Math.abs(R[j]);
+      if (b > pR) pR = b;
+    }
+    if (pL > peaksL[bin]) peaksL[bin] = pL;
+    if (pR > peaksR[bin]) peaksR[bin] = pR;
+  }
+  try {
+    ws.load("", [peaksL, peaksR], total);
+  } catch {}
+}
+
+function wsSetPlayhead(sec, total) {
+  if (!ws) return;
+  const dur = ws.getDuration() || total || 0;
+  if (dur > 0) {
+    const p = Math.max(0, Math.min(1, sec / dur));
+    try {
+      ws.seekTo(p);
+    } catch {}
+  }
+  wsUpdateTime(sec, dur);
+}
+
+function wsUpdateTime(cur, dur) {
+  if (!$wsTime) return;
+  $wsTime.textContent = `${fmtMmSs(cur || 0)} / ${fmtMmSs(dur || 0)}`;
+}
+
+// ---------- Export (chunked WAV) ----------
 async function renderChunkedWAV() {
   setStatus("Preparing offline (WAV)…", "warn");
-  progressWrap.style.display = "block";
-  progress.value = 0;
-  progressText.textContent = "";
+  progressWrap && (progressWrap.style.display = "block");
+  if (progress) {
+    progress.value = 0;
+  }
+  if (progressText) {
+    progressText.textContent = "";
+  }
 
-  const SR = OUTPUT_SAMPLE_RATE;
-  const CHUNK_SEC = 20;
-  const totalSec = totalSecCached;
-
+  const SR = OUTPUT_SAMPLE_RATE,
+    CHUNK_SEC = 20,
+    totalSec = totalSecCached;
   const chunks = [];
   let renderedSec = 0;
+  if (!totalSecCached || totalSecCached <= 0) {
+    setStatus("Nothing to render (total duration is 0).", "err");
+    return;
+  }
 
   while (renderedSec < totalSec) {
-    const winStart = renderedSec;
-    const winEnd = Math.min(totalSec, renderedSec + CHUNK_SEC);
+    const winStart = renderedSec,
+      winEnd = Math.min(totalSec, renderedSec + CHUNK_SEC);
     const buf = await renderWindowToBuffer(winStart, winEnd, SR);
 
+    // collect PCM16 as small blocks (Blob parts)
     const L = buf.getChannelData(0);
     const R = buf.numberOfChannels > 1 ? buf.getChannelData(1) : L;
-    const i16 = f32StereoToPCM16Bytes(L, R); // Uint8Array
-    chunks.push(i16);
+    const u8 = f32StereoToPCM16Bytes(L, R);
+    chunks.push(u8);
 
     renderedSec = winEnd;
-    progress.value = Math.min(0.98, renderedSec / Math.max(1, totalSec));
-    progressText.textContent = `Rendering… ${fmtHhMmSs(renderedSec)} / ${fmtHhMmSs(totalSec)}`;
+    if (progress) {
+      progress.value = Math.min(0.98, renderedSec / Math.max(1, totalSec));
+    }
+    if (progressText) {
+      progressText.textContent = `Rendering… ${fmtHhMmSs(
+        renderedSec
+      )} / ${fmtHhMmSs(totalSec)}`;
+    }
   }
 
   const wavBlob = buildWavFromChunks(chunks, SR, 2);
   lastBlob = wavBlob;
-
-  // Init WaveSurfer preview if available
-  if (window.initWaveSurferWithBlob && lastBlob instanceof Blob) {
-    window.initWaveSurferWithBlob(lastBlob);
-  }
-
-  dlBtn.disabled = false;
+  dlBtn && (dlBtn.disabled = false);
   setStatus("Done (offline WAV)", "ok");
-  progress.value = 1;
-  progressText.textContent = "Mix ready.";
+  if (progress) {
+    progress.value = 1;
+  }
+  if (progressText) {
+    progressText.textContent = "Mix ready.";
+  }
 }
 
-function buildWavFromChunks(u8chunks, sampleRate, channels) {
-  const dataSize = u8chunks.reduce((s, c) => s + c.byteLength, 0);
-  const header = wavHeader(sampleRate, channels, dataSize);
-  return new Blob([header, ...u8chunks], { type: "audio/wav" });
-}
-
-// ---------- Encoding utils ----------
 function f32StereoToPCM16Bytes(L, R) {
   const n = Math.min(L.length, R.length);
   const out = new Int16Array(n * 2);
   for (let i = 0, j = 0; i < n; i++) {
-    let l = Math.max(-1, Math.min(1, L[i]));
-    let r = Math.max(-1, Math.min(1, R[i]));
+    let l = Math.max(-1, Math.min(1, L[i])),
+      r = Math.max(-1, Math.min(1, R[i]));
     out[j++] = l < 0 ? l * 0x8000 : l * 0x7fff;
     out[j++] = r < 0 ? r * 0x8000 : r * 0x7fff;
   }
   return new Uint8Array(out.buffer);
 }
 function wavHeader(sampleRate, channels, dataBytes) {
-  const buf = new ArrayBuffer(44);
-  const v = new DataView(buf);
-  const wr = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
-  wr(0,"RIFF"); v.setUint32(4, 36 + dataBytes, true); wr(8,"WAVE"); wr(12,"fmt ");
-  v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,channels,true);
-  v.setUint32(24,sampleRate,true); v.setUint32(28,sampleRate*channels*2,true);
-  v.setUint16(32,channels*2,true); v.setUint16(34,16,true); wr(36,"data"); v.setUint32(40,dataBytes,true);
+  const buf = new ArrayBuffer(44),
+    v = new DataView(buf);
+  const wr = (o, s) => {
+    for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i));
+  };
+  wr(0, "RIFF");
+  v.setUint32(4, 36 + dataBytes, true);
+  wr(8, "WAVE");
+  wr(12, "fmt ");
+  v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true);
+  v.setUint16(22, channels, true);
+  v.setUint32(24, sampleRate, true);
+  v.setUint32(28, sampleRate * channels * 2, true);
+  v.setUint16(32, channels * 2, true);
+  v.setUint16(34, 16, true);
+  wr(36, "data");
+  v.setUint32(40, dataBytes, true);
   return new Uint8Array(buf);
 }
+function buildWavFromChunks(u8chunks, sampleRate, channels) {
+  const dataSize = u8chunks.reduce((s, c) => s + c.byteLength, 0);
+  const header = wavHeader(sampleRate, channels, dataSize);
+  return new Blob([header, ...u8chunks], { type: "audio/wav" });
+}
+// Construit les peaks globaux du mix à partir des AudioBuffer décodés
+async function wsBuildPeaksFromDecoded() {
+  if (!ws || !timeline.length || !totalSecCached) return;
 
-// ---------- Actions ----------
+  // (ré)alloue les peaks d'abord
+  if (!peaksL || peaksL.length !== N_BINS) {
+    peaksL = new Float32Array(N_BINS);
+    peaksR = new Float32Array(N_BINS);
+  } else {
+    peaksL.fill(0);
+    peaksR.fill(0);
+  }
+
+  const total = totalSecCached; // <-- défini ici
+  const xfade = clamp(parseFloat(xfadeInput?.value || "0"), 0, 10);
+
+  // stride rapide (~20ms). Utilise le SR réel de chaque buffer pour le temps local
+  const defaultStride = Math.max(512, Math.floor(OUTPUT_SAMPLE_RATE / 50));
+
+  for (let i = 0; i < timeline.length; i++) {
+    const { idx, startSec, endSec } = timeline[i];
+    const buf = buffers[idx];
+    const dur = safeDur(buf);
+    if (dur <= 0) continue;
+
+    // normalisation éventuelle
+    let gain = 1;
+    if (normalizeChk?.checked) {
+      const ch0 = buf.getChannelData(0);
+      let p = 0;
+      for (let k = 0; k < ch0.length; k++) {
+        const v = Math.abs(ch0[k]);
+        if (v > p) p = v;
+      }
+      const peak = Math.max(1e-6, p);
+      gain = Math.min(1, 0.9 / peak);
+    }
+
+    const prevDur = i > 0 ? safeDur(buffers[timeline[i - 1].idx]) : 0;
+    const safeX = i > 0 ? Math.min(xfade, prevDur / 2, dur / 2) : 0;
+
+    const L = buf.getChannelData(0);
+    const R = buf.numberOfChannels > 1 ? buf.getChannelData(1) : L;
+
+    // stride basé sur le SR du buffer
+    const stride = Math.max(512, Math.floor(buf.sampleRate / 50));
+
+    for (let s = 0; s < L.length; s += stride) {
+      const tLocal = s / buf.sampleRate;
+      const tGlobal = startSec + tLocal;
+      if (tGlobal < startSec || tGlobal > endSec) continue;
+
+      // enveloppe des fades
+      let env = 1;
+      if (safeX > 0) {
+        if (tLocal < safeX) env = Math.max(0.0001, tLocal / safeX);
+        else if (tLocal > dur - safeX)
+          env = Math.max(0.0001, (dur - tLocal) / safeX);
+      }
+      const g = gain * env;
+
+      // peak local
+      let pL = 0,
+        pR = 0,
+        jMax = Math.min(L.length, s + stride);
+      for (let j = s; j < jMax; j++) {
+        const a = Math.abs(L[j]);
+        if (a > pL) pL = a;
+        const b = Math.abs(R[j]);
+        if (b > pR) pR = b;
+      }
+      pL *= g;
+      pR *= g;
+
+      // bin global
+      const bin = Math.max(
+        0,
+        Math.min(N_BINS - 1, Math.floor((tGlobal / total) * N_BINS))
+      );
+      if (pL > peaksL[bin]) peaksL[bin] = pL;
+      if (pR > peaksR[bin]) peaksR[bin] = pR;
+    }
+  }
+
+  // Pousse l’ondulation complète dans WaveSurfer (une seule fois)
+  if (!isExporting) {
+    try {
+      ws.load("", [peaksL, peaksR], total);
+      wsUpdateTime(0, total);
+    } catch {}
+  }
+}
+
+// ---------- Controls: play/pause & skip ----------
+let lastSkipDir = 0,
+  lastSkipAt = 0;
+const DOUBLE_SKIP_MS = 700;
+function computeSkipSeconds(dir) {
+  const now = performance.now();
+  const fast = dir === lastSkipDir && now - lastSkipAt < DOUBLE_SKIP_MS;
+  lastSkipDir = dir;
+  lastSkipAt = now;
+  return fast ? 30 : 10;
+}
+async function bootRollingAt(sec) {
+  recalcTimelineAndTotals();
+  rolling = new RollingPreview({
+    windowSec: 12,
+    sampleRate: OUTPUT_SAMPLE_RATE,
+    totalSec: totalSecCached,
+    onBuffered: () => {}, // timeline bar removed
+    onProgress: (t, total) => {
+      currentSec = t;
+      wsSetPlayhead(t, total);
+    },
+  });
+  await rolling.startAt(sec);
+}
+async function playOrPause() {
+  if (!rolling) {
+    await bootRollingAt(currentSec || 0);
+    setPlayingUI(true);
+    return;
+  }
+  if (isPlaying) {
+    await rolling.pause();
+    setPlayingUI(false);
+  } else {
+    await rolling.play();
+    setPlayingUI(true);
+  }
+}
+async function skipBy(delta) {
+  recalcTimelineAndTotals();
+  const target = clamp((currentSec || 0) + delta, 0, totalSecCached || 0);
+  if (!rolling) {
+    await bootRollingAt(target);
+    setPlayingUI(true);
+    return;
+  }
+  await rolling.jumpTo(target);
+  setPlayingUI(true);
+}
+
+// Buttons & hotkeys
+$wsPlay?.addEventListener("click", () => playOrPause());
+$wsPause?.addEventListener("click", async () => {
+  if (rolling) {
+    await rolling.pause();
+    setPlayingUI(false);
+  }
+});
+$wsBack?.addEventListener("click", () => skipBy(-computeSkipSeconds(-1)));
+$wsFwd?.addEventListener("click", () => skipBy(+computeSkipSeconds(+1)));
+window.addEventListener("keydown", async (e) => {
+  const el = document.activeElement;
+  const typing =
+    el &&
+    (el.tagName === "INPUT" ||
+      el.tagName === "TEXTAREA" ||
+      el.isContentEditable);
+  if (typing) return;
+  if (e.code === "Space") {
+    e.preventDefault();
+    await playOrPause();
+  } else if (e.key === "ArrowLeft") {
+    e.preventDefault();
+    await skipBy(-computeSkipSeconds(-1));
+  } else if (e.key === "ArrowRight") {
+    e.preventDefault();
+    await skipBy(+computeSkipSeconds(+1));
+  }
+});
+
+// ---------- Generate & Download ----------
 renderBtn.addEventListener("click", async () => {
   if (files.length < 2) return;
   if (!timeline.length) recalcTimelineAndTotals();
 
-  // (Plus de live preview ici)
+  // Position de départ = curseur WS s’il existe, sinon 0
+  const startAt =
+    ws && typeof ws.getCurrentTime === "function"
+      ? ws.getCurrentTime() || 0
+      : 0;
+
+  // Démarre/relance proprement le rolling preview à la bonne position
+  if (rolling) {
+    await rolling.stop();
+    rolling = null;
+    setPlayingUI(false);
+  }
+  await bootRollingAt(startAt);
+  setPlayingUI(true);
+
+  // Lance l'export chunké — et bloque les reload waveform le temps de l’export
+  isExporting = true;
   renderChunkedWAV()
-    .then(() => {
-      // Après export, on charge l’aperçu dans WaveSurfer (#wave)
-      if (window.initWaveSurferWithBlob && lastBlob instanceof Blob) {
-        window.initWaveSurferWithBlob(lastBlob);
-      }
-    })
     .catch((err) => {
       console.error(err);
       setStatus(err.message || String(err), "err");
+    })
+    .finally(() => {
+      isExporting = false;
     });
 });
 
-
-dlBtn.addEventListener("click", () => {
+dlBtn?.addEventListener("click", () => {
   if (!lastBlob) return;
   const a = document.createElement("a");
   a.href = URL.createObjectURL(lastBlob);

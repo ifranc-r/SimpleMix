@@ -188,3 +188,4 @@ select#outputMode { min-width: 220px; }
 /* WaveSurfer look */
 #wave { border:1px solid var(--line); background:#fff; }
 #wave wave { user-select:none; }
+#wave { position: relative; z-index: 1; }
