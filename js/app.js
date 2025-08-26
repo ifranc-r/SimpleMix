@@ -75,11 +75,12 @@ function fmtMmSs(s) {
   return `${m}:${String(ss).padStart(2, "0")}`;
 }
 function fmtHhMmSs(s) {
-  const h = Math.floor(s / 3600),
-    m = Math.floor((s % 3600) / 60),
-    ss = Math.floor(s % 60);
-  return `${h}:${String(m).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const ss = Math.floor(s % 60);
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
 }
+
 function setPlayingUI(p) {
   isPlaying = p; /* label optional */
 }
@@ -639,7 +640,7 @@ function wsSetPlayhead(sec, total) {
 
 function wsUpdateTime(cur, dur) {
   if (!$wsTime) return;
-  $wsTime.textContent = `${fmtMmSs(cur || 0)} / ${fmtMmSs(dur || 0)}`;
+  $wsTime.textContent = `${fmtHhMmSs(cur || 0)} / ${fmtHhMmSs(dur || 0)}`;
 }
 
 // ---------- Export (chunked WAV) ----------
