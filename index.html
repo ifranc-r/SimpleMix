@@ -4,12 +4,16 @@
   <meta charset="utf-8" />
   <meta property="og:type" content="website" />
   <meta property="og:title" content="SimpleMix — 100% Open Source" />
-  <meta property="og:description" content="Make your mix in 2 clicks — upload your tracks, reorder, crossfade, and download as one WAV file. No ads, no accounts, no cloud." />
+  <meta property="og:description" content="Make your mix in 2 clicks — upload your tracks, reorder, crossfade, and download as one file. No ads, no accounts, no cloud." />
   <meta property="og:url" content="https://ifranc-r.github.io/SimpleMix/" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="icon" type="image/x-icon" href="icon.png">
   <title>SimpleMix — 100% Open Source</title>
   <link rel="stylesheet" href="css/style.css">
+  <!-- WaveSurfer (CDN) -->
+  <script src="https://unpkg.com/wavesurfer.js@7"></script>
+  <!-- Initializer that exposes window.initWaveSurferWithBlob -->
+  <script src="js/wavesurfer-init.js"></script>
 </head>
 
 <!-- SimpleMix intro modal — static image -->
@@ -18,10 +22,9 @@
     <h2 class="sm-title">Welcome to SimpleMix</h2>
     <p class="sm-intro">
       <span class="slogan">MAKE YOUR MIX</span><br><br>
-      <strong>Upload → 🎵🎵🎵 = One Mix (WAV)</strong><br><br>
+      <strong>Upload → 🎵🎵🎵 = One Mix</strong><br><br>
       TUTO:
     </p>
-
     <img src="tuto2.png" alt="How SimpleMix works" class="sm-tuto">
     <button id="smClose" class="sm-button" aria-label="Close">Got it</button>
   </div>
@@ -30,18 +33,8 @@
 <body>
   <h1>SimpleMix — 100% Open Source</h1>
   <p class="small">
-    <strong>Choose your 🎵Tracks + Arrange & Crossfade = YourMix.wav (Listen & Download) </strong>
-    <br><br>
-    No ads<br>
-    no accounts<br>
-    no cloud<br>
-    <strong>just fast one-click mixing</strong>
-    <br><br>  
-    No server <strong>directly in your browser</strong><br> 
-    No compression : <strong>Mix is saved locally as a high-quality WAV <br>(44.1 kHz stereo)</strong>   
-    <br>
-    <br>
-    <strong>limit lenght of mix: 1 hour</strong>
+    <strong>Choose your 🎵Tracks + Arrange & Crossfade = YourMix (Listen & Download)</strong><br><br>
+    No ads • No accounts • No cloud — <strong>everything runs in your browser</strong>.
   </p>
 
   <div class="panel">
@@ -64,8 +57,10 @@
     </div>
     <ul id="tracks"></ul>
     <div id="tracksPlaceholder" class="placeholder">
-      Add some files to get started
-      
+      Add some files to get started<br>
+      <small style="color:#777">
+        Tip: On iPhone, save your recordings in the Files app (Downloads / iCloud Drive). Streaming music cannot be imported.
+      </small>
     </div>
     <div class="row" style="justify-content:space-between;align-items:center">
       <div class="small">
@@ -74,7 +69,7 @@
       <div class="small" id="limitMsg"></div>
     </div>
     <div style="margin-top:10px">
-      <input id="addMore" type="file" accept="audio/*" multiple style="display:none" />
+      <input id="addMore" type="file" accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac" multiple style="display:none" />
       <button id="addMoreBtn">➕ Add your Tracks 🎵</button>
     </div>
     <div id="loading">⏳ Adding Tracks…</div>
@@ -82,18 +77,32 @@
 
   <div class="panel">
     <div class="row" style="gap:8px">
-      <button id="renderBtn" class="primary" disabled>Generate mix (WAV)</button>
+      <button id="renderBtn" class="primary" disabled>Generate mix</button>
       <button id="dlBtn" disabled>Download mix</button>
       <span id="status" class="badge">Ready</span>
     </div>
+
     <div id="progressWrap" style="margin-top:10px;display:none">
       <progress id="progress" value="0" max="1"></progress>
       <div class="small" id="progressText"></div>
     </div>
-    <audio id="preview" controls style="margin-top:12px;width:100%"></audio>
+
+
+  <!-- WaveSurfer preview (for the final rendered Blob) -->
+  <div class="panel">
+    <div id="wave" style="height:80px"></div>
+    <div class="row" style="gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">
+      <button id="wsPlay">▶ Play</button>
+      <button id="wsPause">⏸ Pause</button>
+      <button id="wsBack">⟲ 10s</button>
+      <button id="wsFwd">10s ⟳</button>
+      <span id="wsTime" class="small">00:00 / 00:00</span>
+    </div>
   </div>
 
+  <!-- App logic last -->
   <script src="js/app.js"></script>
+
   <footer style="margin-top:40px; padding:12px; text-align:center; font-size:0.85rem; color:#999; border-top:1px solid #333">
     <p>
       © 2025 ifranc-r • 
@@ -105,4 +114,5 @@
       </a>
     </p>
   </footer>
+</body>
 </html>

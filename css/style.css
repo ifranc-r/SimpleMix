@@ -167,3 +167,24 @@
   color:#aaa; /* plus discret */
   text-transform:uppercase;
 }
+
+select#outputMode { min-width: 220px; }
+
+.timeline{margin-top:10px}
+.tl-bar{position:relative;height:20px;background:#e5e5e5;border:1px solid #ccc}
+.tl-buffered{position:absolute;left:0;top:0;bottom:0;width:0;background:#bbb}
+.tl-playhead{position:absolute;top:-3px;width:2px;bottom:-3px;left:0;background:#000}
+.tl-legend{display:flex;justify-content:space-between;font-size:.9rem;color:#555;margin-top:4px}
+@media (prefers-color-scheme: dark){
+  .tl-bar{background:#222;border-color:#333}
+  .tl-buffered{background:#444}
+  .tl-playhead{background:#fff}
+  .tl-legend{color:#aaa}
+}
+#playBtn, #pauseBtn { padding:6px 10px; }
+
+#playerControls button { padding:6px 10px; }
+
+/* WaveSurfer look */
+#wave { border:1px solid var(--line); background:#fff; }
+#wave wave { user-select:none; }
