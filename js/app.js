@@ -513,7 +513,7 @@ class RollingPreview {
     const now = ctx.currentTime;
     const dur = buf.duration;
     const fade = EDGE_FADE_MS / 1000;
-    const remain = Math.max(0, dur - startOffset);
+    const remain = Math.max(0, dur - startOffset - 1e-4);
 
     g.gain.cancelScheduledValues(now);
     g.gain.setValueAtTime(0.0001, now);
@@ -539,8 +539,16 @@ class RollingPreview {
       if (this.nextBuf) {
         const next = this.nextBuf;
         this.nextBuf = null;
-        // when chaining, play next buffer from its start (offset 0)
-        this._playBuffer(next.buf, next.t0, 0);
+
+        // Position où on doit continuer (fin du buffer courant)
+        const currentEnd = this.t0 + Math.max(0, dur - startOffset);
+        // Offset à l’intérieur du prochain window
+        const carryOffset = Math.max(
+          0,
+          Math.min(next.buf.duration, currentEnd - next.t0)
+        );
+
+        this._playBuffer(next.buf, next.t0, carryOffset);
       }
     };
   }
@@ -548,7 +556,7 @@ class RollingPreview {
   _prefetch(nextStart) {
     if (nextStart >= this.totalSec) return;
     const end = Math.min(this.totalSec, nextStart + this.W);
-    const myGen = ++this._gen;
+    const myGen = this._gen; // ← on NE l’incrémente plus ici
     renderWindowToBuffer(nextStart, end, this.SR)
       .then((b) => {
         if (this._gen !== myGen || this._stopped) return;
