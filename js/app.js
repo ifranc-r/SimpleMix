@@ -6,6 +6,14 @@
 const OUTPUT_SAMPLE_RATE = 44100;
 const MEM_SOFT_CAP_BYTES = 1.2 * 1024 * 1024 * 1024;
 
+// Fenêtre plus large + lookahead + micro-fade
+const WINDOW_SEC = 24; // au lieu de 12
+const LOOKAHEAD_SEC = 4; // précharger 4 s avant la fin
+const EDGE_FADE_MS = 8; // petites rampes pour éviter les clics
+
+const safeIdle = (fn) =>
+  window.requestIdleCallback ? requestIdleCallback(fn) : setTimeout(fn, 0);
+
 // ---------- UI refs ----------
 const addMoreInput = document.getElementById("addMore");
 const addMoreBtn = document.getElementById("addMoreBtn");
@@ -50,10 +58,14 @@ let isExporting = false; // pour ne pas recréer la waveform pendant l'export
 let wsBootedOnce = false; // pour éviter les reloads qui remettent le curseur à 0
 
 // WaveSurfer + progressive peaks
+// WaveSurfer (visual only)
 let ws = null;
-const N_BINS = 2048; // resolution of the whole track
-let peaksL = null;
-let peaksR = null;
+const N_BINS = 1024;
+let peaksL = null,
+  peaksR = null;
+
+// NEW: block feedback loop when we move the cursor ourselves
+let wsSeekingByCode = false;
 
 // ---------- Small helpers ----------
 function setStatus(text, cls) {
@@ -78,7 +90,9 @@ function fmtHhMmSs(s) {
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   const ss = Math.floor(s % 60);
-  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(
+    ss
+  ).padStart(2, "0")}`;
 }
 
 function setPlayingUI(p) {
@@ -282,7 +296,7 @@ function recalcTimelineAndTotals() {
 
   // boot / refresh WaveSurfer placeholder
   wsBoot(totalSecCached);
-  wsBuildPeaksFromDecoded();
+  safeIdle(() => wsBuildPeaksFromDecoded());
 }
 
 // ---------- Offline window renderer ----------
@@ -367,31 +381,41 @@ function scheduleWindowIntoOffline(offline, winStart, winEnd) {
 // ---------- Rolling preview ----------
 class RollingPreview {
   constructor(opts = {}) {
-    this.W = opts.windowSec ?? 12;
+    this.W = opts.windowSec ?? WINDOW_SEC; // ← utilise ta constante
     this.SR = opts.sampleRate ?? OUTPUT_SAMPLE_RATE;
     this.totalSec = opts.totalSec ?? 0;
     this.onBuffered = opts.onBuffered || (() => {});
     this.onProgress = opts.onProgress || (() => {});
 
-    this.curCtx = null;
+    // Un seul AudioContext pour toute la vie du preview
+    this.ctx = new (window.AudioContext || window.webkitAudioContext)({
+      sampleRate: this.SR,
+    });
+
     this.curSrc = null;
     this.nextBuf = null;
-    this.t0 = 0;
-    this.startedAt = 0;
+
+    this.t0 = 0; // temps global du début de la fenêtre courante
+    this.startedAt = 0; // horloge ctx au moment du start()
     this._stopped = true;
     this._paused = false;
+
+    this._tick = this._tick.bind(this);
+
     this._raf = null;
     this._iv = null;
-    this._tick = this._tick.bind(this);
     this._gen = 0;
 
+    // Important : on NE suspend PAS en arrière-plan (sinon coupures).
     document.addEventListener("visibilitychange", async () => {
-      if (!this.curCtx) return;
+      if (!this.ctx) return;
       try {
-        await this.curCtx.resume();
+        if (document.visibilityState === "visible") await this.ctx.resume();
+        // else: ne rien faire → laisse jouer en fond
       } catch {}
     });
   }
+
   async _stopCurrentOnly() {
     if (this.curSrc) {
       try {
@@ -403,38 +427,37 @@ class RollingPreview {
       } catch {}
       this.curSrc = null;
     }
-    if (this.curCtx) {
-      try {
-        await this.curCtx.close();
-      } catch {}
-      this.curCtx = null;
-    }
+    // NE PAS fermer this.ctx ici (il est réutilisé)
   }
+
   async stop() {
     this._stopped = true;
     this._paused = false;
     this._stopTicks();
     await this._stopCurrentOnly();
     this.nextBuf = null;
+    // On peut suspendre le ctx pour économiser la batterie quand on s'arrête vraiment
+    try {
+      await this.ctx.suspend();
+    } catch {}
   }
+
   async pause() {
     this._paused = true;
     this._stopTicks();
-    if (this.curCtx?.state === "running") {
-      try {
-        await this.curCtx.suspend();
-      } catch {}
-    }
+    try {
+      await this.ctx.suspend();
+    } catch {}
   }
+
   async play() {
     this._paused = false;
-    if (this.curCtx?.state === "suspended") {
-      try {
-        await this.curCtx.resume();
-      } catch {}
-    }
+    try {
+      await this.ctx.resume();
+    } catch {}
     this._startTicks();
   }
+
   async startAt(sec) {
     return this.jumpTo(sec);
   }
@@ -446,43 +469,78 @@ class RollingPreview {
     const myGen = ++this._gen;
     await this._stopCurrentOnly();
 
-    // choose window
+    // Make sure audio actually plays
+    try {
+      await this.ctx.resume();
+    } catch {}
+
+    // pick window around 'sec'
     const half = this.W / 2;
     let wStart = Math.max(0, sec - half);
     let wEnd = Math.min(this.totalSec, wStart + this.W);
     if (wEnd - wStart < this.W) wStart = Math.max(0, wEnd - this.W);
 
     const buf = await renderWindowToBuffer(wStart, wEnd, this.SR);
-    wsAccumulatePeaks(wStart, wEnd, buf); // progressively draw waveform
     if (this._gen !== myGen || this._stopped) return;
 
-    this._playBuffer(buf, wStart);
+    const startOffset = Math.max(0, Math.min(buf.duration, sec - wStart));
+    this._playBuffer(buf, wStart, startOffset); // ← pass offset
     this._prefetch(wEnd);
     this._startTicks();
   }
 
-  _playBuffer(buf, t0) {
-    const myGen = this._gen;
-    const ctx = new (window.AudioContext || window.webkitAudioContext)({
-      sampleRate: this.SR,
-    });
+  _tick() {
+    if (this._stopped || this._paused || !this.ctx) return;
+    if (this.ctx.state === "suspended") return;
+
+    const elapsed = this.ctx.currentTime - this.startedAt;
+    const globalT = this.t0 + Math.max(0, elapsed);
+
+    this.onProgress(globalT, this.totalSec);
+    wsSetPlayhead(globalT, this.totalSec);
+    currentSec = globalT;
+
+    this._raf = requestAnimationFrame(() => this._tick());
+  }
+
+  _playBuffer(buf, t0, startOffset = 0) {
+    const ctx = this.ctx;
     const src = ctx.createBufferSource();
     src.buffer = buf;
-    src.connect(ctx.destination);
-    src.start();
 
-    this.curCtx = ctx;
+    // anti-click micro-fades
+    const g = ctx.createGain();
+    const now = ctx.currentTime;
+    const dur = buf.duration;
+    const fade = EDGE_FADE_MS / 1000;
+    const remain = Math.max(0, dur - startOffset);
+
+    g.gain.cancelScheduledValues(now);
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.linearRampToValueAtTime(1.0, now + fade);
+    // apply fade-out at end of remaining segment
+    g.gain.setValueAtTime(1.0, now + Math.max(0, remain - fade));
+    g.gain.linearRampToValueAtTime(0.0001, now + remain);
+
+    src.connect(g).connect(ctx.destination);
+    // start inside the rendered window
+    src.start(now, startOffset);
+
     this.curSrc = src;
-    this.t0 = t0;
-    this.startedAt = ctx.currentTime;
+    this.t0 = t0 + startOffset; // global position matches what we hear
+    this.startedAt = now;
+
+    // prefetch based on remaining play time of this buffer
+    const nextStart = this.t0 + remain - LOOKAHEAD_SEC;
+    this._prefetch(nextStart);
 
     src.onended = () => {
-      if (this._gen !== myGen || this._stopped || this._paused) return;
+      if (this._stopped || this._paused) return;
       if (this.nextBuf) {
         const next = this.nextBuf;
         this.nextBuf = null;
-        this._playBuffer(next.buf, next.t0);
-        this._prefetch(next.t0 + this.W);
+        // when chaining, play next buffer from its start (offset 0)
+        this._playBuffer(next.buf, next.t0, 0);
       }
     };
   }
@@ -490,22 +548,25 @@ class RollingPreview {
   _prefetch(nextStart) {
     if (nextStart >= this.totalSec) return;
     const end = Math.min(this.totalSec, nextStart + this.W);
-    const myGen = this._gen;
+    const myGen = ++this._gen;
     renderWindowToBuffer(nextStart, end, this.SR)
       .then((b) => {
-        if (this._gen !== myGen) return;
+        if (this._gen !== myGen || this._stopped) return;
         this.nextBuf = { buf: b, t0: nextStart };
         this.onBuffered({ from: nextStart, to: end });
-        wsAccumulatePeaks(nextStart, end, b); // update waveform as we go
+        wsAccumulatePeaks?.(nextStart, end, b);
       })
       .catch(() => {});
   }
 
   _startTicks() {
     this._stopTicks();
-    this._raf = requestAnimationFrame(this._tick);
-    this._iv = setInterval(this._tick, 250);
+    // rAF pour le front (fluide), setInterval pour l’arrière-plan (rAF est throttle)
+    const tick = () => this._tick();
+    this._raf = requestAnimationFrame(tick);
+    this._iv = setInterval(tick, 250);
   }
+
   _stopTicks() {
     if (this._raf) {
       cancelAnimationFrame(this._raf);
@@ -516,64 +577,65 @@ class RollingPreview {
       this._iv = null;
     }
   }
-  _tick() {
-    if (this._stopped || this._paused || !this.curCtx) return;
-    if (this.curCtx.state === "suspended") return;
-    const elapsed = this.curCtx.currentTime - this.startedAt;
-    const globalT = this.t0 + Math.max(0, elapsed);
-    this.onProgress(globalT, this.totalSec);
-    wsSetPlayhead(globalT, this.totalSec); // drive WS cursor/time
-    currentSec = globalT;
-    this._raf = requestAnimationFrame(this._tick);
-  }
 }
 
 function wsBoot(totalSec) {
   if (!window.WaveSurfer) return;
 
-if (!ws) {
-  ws = WaveSurfer.create({
-    container: '#wave',
-    waveColor: '#999',
-    progressColor: '#000',
-    cursorColor: '#333',
-    height: 80,
-    interact: true,
-  });
+  if (!ws) {
+    ws = WaveSurfer.create({
+      container: "#wave",
+      waveColor: "#999",
+      progressColor: "#000",
+      cursorColor: "#333",
+      height: 80,
+      interact: true,
+    });
 
-  // 1) Seek WaveSurfer → pilote le preview
-  const handleSeek = async (progress) => {
-    const dur = ws.getDuration() || totalSecCached || 0;
-    const when = Math.max(0, Math.min(dur, progress * dur));
+    // 1) Seek WaveSurfer → pilote le preview
+    const handleSeek = async (progress) => {
+      const dur = ws.getDuration() || totalSecCached || 0;
+      const when = Math.max(0, Math.min(dur, progress * dur));
 
-    // force l’affichage immédia​t du curseur + temps
-    try { ws.setTime(when); } catch {}
-    wsUpdateTime(when, dur);
+      // force l’affichage immédia​t du curseur + temps
+      try {
+        ws.setTime(when);
+      } catch {}
+      wsUpdateTime(when, dur);
 
-    if (!rolling) {
-      await bootRollingAt(when);
+      if (!rolling) {
+        await bootRollingAt(when);
+        setPlayingUI(true);
+        return;
+      }
+      await rolling.jumpTo(when);
       setPlayingUI(true);
-      return;
-    }
-    await rolling.jumpTo(when);
-    setPlayingUI(true);
-  };
+    };
 
-  ws.on('seek', handleSeek);
+    ws.on("seek", async (progress) => {
+      if (wsSeekingByCode) return; // <-- ignore programmatic seeks
+      await handleSeek(progress); // user-initiated seek only
+    });
 
-  // 2) Fallback manuel si l’event 'seek' ne part pas (certains contextes)
-  const el = document.getElementById('wave');
-  el?.addEventListener('pointerdown', async (e) => {
-    // ignore si WS n'a pas encore de durée connue
-    const dur = ws.getDuration() || totalSecCached || 0;
-    if (!dur) return;
+    // 2) Fallback manuel si l’event 'seek' ne part pas (certains contextes)
+    const el = document.getElementById("wave");
+    el?.addEventListener(
+      "pointerdown",
+      async (e) => {
+        // ignore si WS n'a pas encore de durée connue
+        const dur = ws.getDuration() || totalSecCached || 0;
+        if (!dur) return;
 
-    const rect = el.getBoundingClientRect();
-    const p = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    await handleSeek(p);
-  }, { passive: true });
-}
-
+        const rect = el.getBoundingClientRect();
+        const p = Math.max(
+          0,
+          Math.min(1, (e.clientX - rect.left) / rect.width)
+        );
+        await handleSeek(p);
+      },
+      { passive: true }
+    );
+  }
 
   // (ré)alloue les peaks si besoin
   if (!peaksL || peaksL.length !== N_BINS) {
@@ -592,6 +654,7 @@ if (!ws) {
   wsUpdateTime(0, totalSec || 0);
 }
 
+// en haut : const N_BINS = 1024;
 function wsAccumulatePeaks(winStartSec, winEndSec, audioBuffer) {
   if (!ws) return;
   const total = ws.getDuration() || totalSecCached || 0;
@@ -601,7 +664,9 @@ function wsAccumulatePeaks(winStartSec, winEndSec, audioBuffer) {
   const L = audioBuffer.getChannelData(0);
   const R =
     audioBuffer.numberOfChannels > 1 ? audioBuffer.getChannelData(1) : L;
-  const stride = 512;
+
+  // stride plus grand (≈ 40–50 ms) → beaucoup moins de boucles
+  const stride = Math.max(1024, Math.floor(sr / 20));
 
   for (let i = 0; i < L.length; i += stride) {
     const t = winStartSec + i / sr;
@@ -628,14 +693,30 @@ function wsAccumulatePeaks(winStartSec, winEndSec, audioBuffer) {
 
 function wsSetPlayhead(sec, total) {
   if (!ws) return;
+
   const dur = ws.getDuration() || total || 0;
-  if (dur > 0) {
-    const p = Math.max(0, Math.min(1, sec / dur));
-    try {
-      ws.seekTo(p);
-    } catch {}
-  }
   wsUpdateTime(sec, dur);
+
+  if (dur <= 0) return;
+
+  const p = Math.max(0, Math.min(1, sec / dur));
+
+  // Avoid hammering WS if we’re already close (prevents jitter)
+  const cur =
+    typeof ws.getCurrentTime === "function" ? ws.getCurrentTime() || 0 : null;
+  if (cur !== null && Math.abs(cur - sec) < 0.08) return;
+
+  try {
+    wsSeekingByCode = true; // <-- mute the 'seek' handler
+    ws.seekTo(p);
+  } catch (_) {
+    /* ignore */
+  } finally {
+    // drop the flag on the next microtask so user clicks still work
+    Promise.resolve().then(() => {
+      wsSeekingByCode = false;
+    });
+  }
 }
 
 function wsUpdateTime(cur, dur) {
@@ -709,6 +790,7 @@ function f32StereoToPCM16Bytes(L, R) {
   }
   return new Uint8Array(out.buffer);
 }
+
 function wavHeader(sampleRate, channels, dataBytes) {
   const buf = new ArrayBuffer(44),
     v = new DataView(buf);
@@ -730,11 +812,13 @@ function wavHeader(sampleRate, channels, dataBytes) {
   v.setUint32(40, dataBytes, true);
   return new Uint8Array(buf);
 }
+
 function buildWavFromChunks(u8chunks, sampleRate, channels) {
   const dataSize = u8chunks.reduce((s, c) => s + c.byteLength, 0);
   const header = wavHeader(sampleRate, channels, dataSize);
   return new Blob([header, ...u8chunks], { type: "audio/wav" });
 }
+
 // Construit les peaks globaux du mix à partir des AudioBuffer décodés
 async function wsBuildPeaksFromDecoded() {
   if (!ws || !timeline.length || !totalSecCached) return;
@@ -842,10 +926,10 @@ function computeSkipSeconds(dir) {
 async function bootRollingAt(sec) {
   recalcTimelineAndTotals();
   rolling = new RollingPreview({
-    windowSec: 12,
+    windowSec: WINDOW_SEC, // ← ICI
     sampleRate: OUTPUT_SAMPLE_RATE,
     totalSec: totalSecCached,
-    onBuffered: () => {}, // timeline bar removed
+    onBuffered: () => {},
     onProgress: (t, total) => {
       currentSec = t;
       wsSetPlayhead(t, total);
@@ -868,7 +952,6 @@ async function playOrPause() {
   }
 }
 async function skipBy(delta) {
-  recalcTimelineAndTotals();
   const target = clamp((currentSec || 0) + delta, 0, totalSecCached || 0);
   if (!rolling) {
     await bootRollingAt(target);
@@ -887,6 +970,7 @@ $wsPause?.addEventListener("click", async () => {
     setPlayingUI(false);
   }
 });
+
 $wsBack?.addEventListener("click", () => skipBy(-computeSkipSeconds(-1)));
 $wsFwd?.addEventListener("click", () => skipBy(+computeSkipSeconds(+1)));
 window.addEventListener("keydown", async (e) => {
