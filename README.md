@@ -1,4 +1,4 @@
-# 🎶 Track2One — *Make your mix in 2 clicks.*
+# 🎶 Simplemix — *Make your mix in 2 clicks.*
 [![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg)](LICENSE.md)
 
 
@@ -9,13 +9,13 @@
 ## Tutorial
 
 
-Go to https://ifranc-r.github.io/Track2One/
+Go to https://ifranc-r.github.io/Simplemix/
 1. Choose your 🎵Tracks 
 2. Arrange it & Crossfade
 3. get our *Your_Mix.wav* (Listen & Download)
 
 
-## Why Track2One?
+## Why Simplemix?
 
 Most audio editors and DJ tools are too complex for simple tasks.
 
