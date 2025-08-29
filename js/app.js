@@ -31,6 +31,9 @@ const totalDurEl = document.getElementById("totalDur");
 const limitMsgEl = document.getElementById("limitMsg");
 const limitMsgTop = document.getElementById("limitMsgTop");
 const loadingEl = document.getElementById("loading");
+const previewBtn = document.getElementById("previewBtn");
+// --- Drag & drop anywhere to add files ---------------------------------
+const dropMask = document.getElementById('dropMask');
 
 // WaveSurfer UI
 const $wsTime = document.getElementById("wsTime");
@@ -67,6 +70,13 @@ let peaksL = null,
 // NEW: block feedback loop when we move the cursor ourselves
 let wsSeekingByCode = false;
 
+// --- Options d'effets (toggle on/off)
+const FX = {
+  lowpassIn:  true,   // filtre passe-bas pendant le fade-in
+  highpassOut:true,   // filtre passe-haut pendant le fade-out
+  echoOut:    true,   // petit echo à la sortie
+  tapeStop:   false,  // “tape-stop” sur la queue (met à true si tu veux)
+};
 // ---------- Small helpers ----------
 function setStatus(text, cls) {
   if (statusEl) {
@@ -117,7 +127,7 @@ async function handleFiles(fileList) {
     buffers.length = files.length;
     await decodeAllMetadata(startIndex);
     renderList();
-    recalcTimelineAndTotals(); // also boots WaveSurfer
+    // recalcTimelineAndTotals(); // also boots WaveSurfer
     if (renderBtn) renderBtn.disabled = !(files.length >= 2);
   } finally {
     loadingEl && (loadingEl.style.display = "none");
@@ -267,6 +277,77 @@ function removeAt(pos) {
   recalcTimelineAndTotals();
   if (renderBtn) renderBtn.disabled = !(files.length >= 2);
 }
+
+
+// --- drag and drop files from windows
+const isAudioFile = (f) => {
+  if (!f) return false;
+  const okMime = (f.type || '').startsWith('audio/');
+  const okExt  = /\.(mp3|wav|m4a|aac|ogg|flac)$/i.test(f.name || '');
+  return okMime || okExt;
+};
+
+// Évite que le navigateur ouvre le fichier à la place de ton app
+['dragenter','dragover','dragleave','drop'].forEach(evt => {
+  window.addEventListener(evt, (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, { passive:false });
+});
+
+// compteur pour éviter les clignotements du masque
+let dragDepth = 0;
+
+window.addEventListener('dragenter', (e) => {
+  dragDepth++;
+  // On n’affiche le masque que s’il y a au moins un fichier dans le drag
+  const hasFiles = Array.from(e.dataTransfer?.types || []).includes('Files');
+  if (hasFiles) dropMask.style.display = 'grid';
+});
+
+window.addEventListener('dragover', (e) => {
+  // optionnel: changer le curseur
+  e.dataTransfer.dropEffect = 'copy';
+});
+
+window.addEventListener('dragleave', () => {
+  dragDepth = Math.max(0, dragDepth - 1);
+  if (dragDepth === 0) dropMask.style.display = 'none';
+});
+
+window.addEventListener('drop', async (e) => {
+  dragDepth = 0;
+  dropMask.style.display = 'none';
+
+  const dt = e.dataTransfer;
+  if (!dt) return;
+
+  // 1) fichiers directs
+  let fileList = Array.from(dt.files || []);
+
+  // 2) si items → filtre par fichiers (ignore texte/urls)
+  if (!fileList.length && dt.items) {
+    const items = Array.from(dt.items);
+    const filesFromItems = await Promise.all(items.map(async (it) => {
+      if (it.kind === 'file') return it.getAsFile();
+      return null;
+    }));
+    fileList = filesFromItems.filter(Boolean);
+  }
+
+  // Filtrer sur l’audio uniquement
+  const audioFiles = fileList.filter(isAudioFile);
+  if (!audioFiles.length) return;
+
+  // Réutilise ta pipeline d’ajout
+  await handleFiles(audioFiles);
+});
+
+window.addEventListener('dragenter', (e) => {
+  // …
+  dropMask.textContent = 'Drop files to add 🎵';
+});
+
 
 // ---------- Timeline & totals (also boots WS) ----------
 function recalcTimelineAndTotals() {
@@ -1030,7 +1111,7 @@ renderBtn.addEventListener("click", async () => {
     })
     .finally(() => {
       isExporting = false;
-    });
+    });  
 });
 
 dlBtn?.addEventListener("click", () => {
@@ -1042,3 +1123,75 @@ dlBtn?.addEventListener("click", () => {
   a.click();
   a.remove();
 });
+
+// -- Relaod buton---
+previewBtn.addEventListener("click", async () => {
+  if (files.length < 1) return;
+  if (!timeline.length) recalcTimelineAndTotals();
+
+  // Position de départ : 0 ou curseur actuel
+  const startAt = ws?.getCurrentTime?.() || 0;
+
+  // Stoppe un ancien rolling si actif
+  if (rolling) {
+    await rolling.stop();
+    rolling = null;
+    setPlayingUI(false);
+  }
+
+  // Boot le rolling preview
+  await bootRollingAt(startAt);
+  setPlayingUI(true);
+
+  setStatus("Preview mode (no export)", "warn");
+  previewBtn.innerHTML = "↻ Reload Preview";
+});
+
+
+
+// ---- Effect transition---
+const fadeInStart = startSec, fadeInEnd = startSec + safeX;
+const fadeOutStart = endSec - safeX, fadeOutEnd = endSec;
+const inFadeIn  = ovStart < fadeInEnd  && ovEnd > fadeInStart;
+const inFadeOut = ovStart < fadeOutEnd && ovEnd > fadeOutStart;
+
+function addLowpassSweep(ctx, node, startTime, dur, {f0=300, f1=16000, Q=0.7}={}){
+  const lp = ctx.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.Q.value = Q;
+  lp.frequency.setValueAtTime(f0, startTime);
+  lp.frequency.exponentialRampToValueAtTime(f1, startTime + dur);
+  node.connect(lp);
+  return lp;
+}
+
+function addHighpassSweep(ctx, node, startTime, dur, {f0=60, f1=800, Q=0.7}={}){
+  const hp = ctx.createBiquadFilter();
+  hp.type = "highpass";
+  hp.Q.value = Q;
+  hp.frequency.setValueAtTime(f0, startTime);
+  hp.frequency.exponentialRampToValueAtTime(f1, startTime + dur);
+  node.connect(hp);
+  return hp;
+}
+
+function addEchoOut(ctx, node, startTime, {delayMs=240, feedback=0.35, mix=0.3}={}){
+  const delay = ctx.createDelay(1.0);
+  delay.delayTime.value = delayMs/1000;
+
+  const fb = ctx.createGain(); fb.gain.value = feedback;
+  const wet = ctx.createGain(); wet.gain.setValueAtTime(mix, startTime);
+
+  node.connect(delay);
+  delay.connect(fb).connect(delay); // feedback
+  delay.connect(wet);
+  return wet; // tu connecteras wet -> destination en // du dry
+}
+
+function scheduleTapeStop(src, ctx, when, dur=0.5){
+  // ralentit de 1.0 → 0.01 (pas 0, pour éviter un clic)
+  src.playbackRate.setValueAtTime(1.0, when);
+  src.playbackRate.exponentialRampToValueAtTime(0.01, when + dur);
+}
+
+

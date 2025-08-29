@@ -14,25 +14,34 @@
   <link rel="stylesheet" href="css/style.css">
 
 
-<!-- SimpleMix intro modal — static image -->
-<div id="introModal" class="sm-modal" aria-hidden="true">
-  <div class="sm-box" role="dialog" aria-modal="true" aria-label="SimpleMix quick tutorial">
-    <h2 class="sm-title">Welcome to SimpleMix</h2>
-    <p class="sm-intro">
-      <span class="slogan">MAKE YOUR MIX</span><br><br>
-      <strong>Upload → 🎵🎵🎵 = One Mix</strong><br><br>
-      TUTO:
-    </p>
-    <img src="tuto2.png" alt="How SimpleMix works" class="sm-tuto">
-    <button id="smClose" class="sm-button" aria-label="Close">Got it</button>
+  <!-- SimpleMix intro modal — static image -->
+  <div id="introModal" class="sm-modal" aria-hidden="true">
+    <div class="sm-box" role="dialog" aria-modal="true" aria-label="SimpleMix quick tutorial">
+      <h2 class="sm-title">Welcome to SimpleMix</h2>
+      <p class="sm-intro">
+        <span class="slogan">MAKE YOUR MIX</span><br><br>
+        <strong>Upload → 🎵🎵🎵 = One Mix</strong><br><br>
+        TUTO:
+      </p>
+      <img src="tuto2.png" alt="How SimpleMix works" class="sm-tuto">
+      <button id="smClose" class="sm-button" aria-label="Close">Got it</button>
+    </div>
   </div>
-</div>
+  <div id="dropMask" style="
+  position:fixed; inset:0; display:none; place-items:center;
+  background:rgba(0,0,0,.55); color:#fff; z-index:9999;
+  font:600 18px system-ui, sans-serif; letter-spacing:.5px;">
+    Drop files to add 🎵
+  </div>
 
 <body>
-  <h1>SimpleMix — 100% Open Source</h1>
+  <h1>SimpleMix — Make your mix in 2 click</h1>
   <p class="small">
-    <strong>Choose your 🎵Tracks + Arrange & Crossfade = YourMix (Listen & Download)</strong><br><br>
-    No ads • No accounts • No cloud — <strong>everything runs in your browser</strong>.
+    <strong>100% open-source tool to quickly create a continuous MIX from multiple audio tracks</strong><br><br>
+    No ads • No accounts • No cloud — <strong>everything runs in your browser</strong><br><br>
+    <strong>1. Choose your 🎵Tracks<br> 
+2. Arrange it & Crossfade<br> 
+3. get our Your_Mix.wav (Listen & Download)<br>  </strong>
   </p>
 
   <div class="panel">
@@ -76,7 +85,9 @@
 
   <div class="panel">
     <div class="row" style="gap:8px">
-      <button id="renderBtn" class="primary" disabled>Generate mix</button>
+      <button id="previewBtn" class="primary">Load Preview Mix</button>
+      <button id="renderBtn" class="primary" disabled>Generate</button>
+      <span>&gt;&gt;&gt;&gt;</span>
       <button id="dlBtn" disabled>Download mix</button>
       <span id="status" class="badge">Ready</span>
     </div>
