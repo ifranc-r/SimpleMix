@@ -70,18 +70,6 @@ In `index.html`:
 It was built as a **front-end only demo** (HTML + CSS + JS, using the Web Audio API) to explore the idea of building audio mixes directly in the browser.
 
 
-## Why?  
-
-**SimpleMix** is a lightweight **proof-of-concept**.  
-It shows how far we can go with **pure client-side Web Audio API**, without servers, accounts, or heavy infrastructure.  
-
-But this is only the beginning. The idea is to prepare the ground for a **full-stack audio mixing platform**, with:  
-- file uploads (bigger than browser memory limits),  
-- server-side rendering with **FFmpeg/SoX**,  
-- authentication & user accounts,  
-- permanent storage (local → S3 later),  
-- background job queue (Symfony Messenger).  
-
 ---
 
 ## Next steps (full version vision)  
@@ -105,31 +93,3 @@ The user is fully responsible for ensuring they have the rights to any audio fil
 This project is licensed under **Creative Commons BY-NC 4.0**.  
 You are free to use, modify, and share it for personal and educational purposes.  
 **Commercial use is strictly prohibited.**
-
-## 🛠️ Tech
-
-**Built with:**
-- Web Audio API (offline rendering + gain control)
-- Vanilla JavaScript, HTML5, CSS3
-- Open source under CC BY-NC 4.0 License
-
-For details, see [LICENSE.md](LICENSE.md).
-Instead, **SimpleMix** focuses on the essentials:
-- Load your tracks
-- Reorder them (drag & drop or buttons)
-- Visualize the **crossfades** clearly
-- Export a clean, local mix (WAV)
-
-> **SimpleMix — Fade it. Don’t overcomplicate it.**
-
----
-
-## ✅ Features
-- 100% local: everything runs in your browser, nothing is uploaded.
-- Add multiple audio files (MP3/WAV/OGG/FLAC, depending on browser support).
-- Reorder tracks easily (drag & drop).
-- Apply a customizable crossfade (in seconds).
-- Normalize each track (peak normalization).
-- Preview in-browser and export to **WAV**.
-
----
